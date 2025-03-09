@@ -71,3 +71,53 @@ func (h *User) Profile(c *fiber.Ctx) error {
 	resp := response.Success(data)
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
+
+type UserUpdatePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+func (h *User) UpdatePassword(c *fiber.Ctx) error {
+
+	userID, ok := c.Locals("userID").(uint64)
+	if ok == false {
+		resp := response.BusinessError("not authenticated")
+		return c.Status(fiber.StatusForbidden).JSON(resp)
+	}
+
+	var req UserUpdatePasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		resp := response.BusinessError("invalid params")
+		return c.Status(fiber.StatusBadRequest).JSON(resp)
+	}
+
+	if req.OldPassword == req.NewPassword {
+		resp := response.BusinessError("new password should be different from old password")
+		return c.Status(fiber.StatusBadRequest).JSON(resp)
+	}
+
+	err := h.userLogic.UpdatePassword(c.UserContext(), logic.UserUpdatePasswordParams{
+		UserID:      userID,
+		OldPassword: req.OldPassword,
+		NewPassword: req.NewPassword,
+	})
+
+	if err != nil {
+
+		if errors.Is(err, errs.ErrUserNotFound) {
+			resp := response.BusinessError("user not found")
+			return c.Status(fiber.StatusNotFound).JSON(resp)
+		}
+
+		if errors.Is(err, errs.ErrWrongPassword) {
+			resp := response.BusinessError("wrong password")
+			return c.Status(fiber.StatusBadRequest).JSON(resp)
+		}
+
+		resp := response.UnexpectedError()
+		return c.Status(fiber.StatusInternalServerError).JSON(resp)
+	}
+
+	resp := response.Success(nil)
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
