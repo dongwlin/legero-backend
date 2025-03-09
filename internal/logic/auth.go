@@ -14,12 +14,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrWrongPassword = errors.New("incorrect password")
-	ErrUserBlocked   = errors.New("user is blocked")
-	ErrInvalidToken  = errors.New("invalid token")
-)
-
 type Auth interface {
 	// Login user
 	Login(ctx context.Context, params AuthLoginParams) (*AuthLoginResult, error)
@@ -79,7 +73,7 @@ func (l *AuthImpl) Login(ctx context.Context, params AuthLoginParams) (*AuthLogi
 	}
 
 	if !isPasswordValid(user.PasswordHash, params.Password) {
-		return nil, ErrWrongPassword
+		return nil, errs.ErrWrongPassword
 	}
 
 	return l.createLoginResponse(ctx, user)
@@ -88,7 +82,7 @@ func (l *AuthImpl) Login(ctx context.Context, params AuthLoginParams) (*AuthLogi
 func (l *AuthImpl) createLoginResponse(ctx context.Context, user *model.User) (*AuthLoginResult, error) {
 
 	if user.Status == types.StatusBlocked {
-		return nil, ErrUserBlocked
+		return nil, errs.ErrUserBlocked
 	}
 
 	token, err := token.Generate(32)
@@ -117,13 +111,13 @@ func (l *AuthImpl) createLoginResponse(ctx context.Context, user *model.User) (*
 func (l *AuthImpl) Register(ctx context.Context, params AuthRegisterParams) (uint64, error) {
 
 	if exists, err := l.userRepo.ExistsByUsername(ctx, params.Username); err == nil && exists {
-		return 0, ErrUsernameAlreadyExists
+		return 0, errs.ErrUsernameAlreadyExists
 	} else if err != nil {
 		return 0, err
 	}
 
 	if exists, err := l.userRepo.ExistsByPhoneNumber(ctx, params.PhoneNumber); err == nil && exists {
-		return 0, ErrPhoneNumberAlreadyExists
+		return 0, errs.ErrPhoneNumberAlreadyExists
 	} else if err != nil {
 		return 0, err
 	}

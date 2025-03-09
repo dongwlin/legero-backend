@@ -54,7 +54,7 @@ func (h *Auth) Login(c *fiber.Ctx) error {
 	})
 	if err != nil {
 
-		if errors.Is(err, errs.ErrUserNotFound) || errors.Is(err, logic.ErrWrongPassword) {
+		if errors.Is(err, errs.ErrUserNotFound) || errors.Is(err, errs.ErrWrongPassword) {
 			resp := response.BusinessError("invalid identifier or password")
 			return c.Status(fiber.StatusBadRequest).JSON(resp)
 		}
@@ -97,12 +97,12 @@ func (h *Auth) Register(c *fiber.Ctx) error {
 	})
 	if err != nil {
 
-		if errors.Is(err, logic.ErrUsernameAlreadyExists) {
+		if errors.Is(err, errs.ErrUsernameAlreadyExists) {
 			resp := response.BusinessError("username already exists")
 			return c.Status(fiber.StatusBadRequest).JSON(resp)
 		}
 
-		if errors.Is(err, logic.ErrPhoneNumberAlreadyExists) {
+		if errors.Is(err, errs.ErrPhoneNumberAlreadyExists) {
 			resp := response.BusinessError("phone number already exists")
 			return c.Status(fiber.StatusBadRequest).JSON(resp)
 		}

@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/dongwlin/legero-backend/internal/model"
@@ -10,11 +9,6 @@ import (
 	"github.com/dongwlin/legero-backend/internal/pkg/errs"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrUsernameAlreadyExists    = errors.New("username already exists")
-	ErrPhoneNumberAlreadyExists = errors.New("phone number already exists")
 )
 
 type User interface {
