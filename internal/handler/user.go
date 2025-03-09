@@ -27,7 +27,7 @@ func (h *User) RegisterRoutes(r fiber.Router) {
 
 	user.Get("/profile", h.Profile)
 	user.Put("/password", h.UpdatePassword)
-
+	user.Put("/nickname", h.UpdateNickname)
 }
 
 type UserProfileResponseData struct {
@@ -113,6 +113,44 @@ func (h *User) UpdatePassword(c *fiber.Ctx) error {
 		if errors.Is(err, errs.ErrWrongPassword) {
 			resp := response.BusinessError("wrong password")
 			return c.Status(fiber.StatusBadRequest).JSON(resp)
+		}
+
+		resp := response.UnexpectedError()
+		return c.Status(fiber.StatusInternalServerError).JSON(resp)
+	}
+
+	resp := response.Success(nil)
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+type UserUpdateNicknameRequest struct {
+	Nickname string `json:"nickname"`
+}
+
+func (h *User) UpdateNickname(c *fiber.Ctx) error {
+
+	userID, ok := c.Locals("userID").(uint64)
+	if ok == false {
+		resp := response.BusinessError("not authenticated")
+		return c.Status(fiber.StatusForbidden).JSON(resp)
+	}
+
+	var req UserUpdateNicknameRequest
+	if err := c.BodyParser(&req); err != nil {
+		resp := response.BusinessError("invalid params")
+		return c.Status(fiber.StatusBadRequest).JSON(resp)
+	}
+
+	err := h.userLogic.UpdateNickname(c.UserContext(), logic.UserUpdateNicknameParams{
+		UserID:      userID,
+		NewNickname: req.Nickname,
+	})
+
+	if err != nil {
+
+		if errors.Is(err, errs.ErrUserNotFound) {
+			resp := response.BusinessError("user not found")
+			return c.Status(fiber.StatusNotFound).JSON(resp)
 		}
 
 		resp := response.UnexpectedError()
