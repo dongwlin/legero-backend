@@ -14,7 +14,7 @@ import (
 	"github.com/google/wire"
 )
 
-var GalbolSet = wire.NewSet(
+var GlobalSet = wire.NewSet(
 	config.Provider,
 	logger.Provider,
 	infra.Provider,
@@ -24,7 +24,7 @@ var GalbolSet = wire.NewSet(
 
 func InitApp() (*app.App, error) {
 	panic(wire.Build(
-		GalbolSet,
+		GlobalSet,
 		server.Provider,
 		app.Provider,
 	))

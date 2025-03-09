@@ -44,4 +44,4 @@ func InitApp() (*app.App, error) {
 
 // wire.go:
 
-var GalbolSet = wire.NewSet(config.Provider, logger.Provider, infra.Provider, repo.Provider, logic.Provider)
+var GlobalSet = wire.NewSet(config.Provider, logger.Provider, infra.Provider, repo.Provider, logic.Provider)
