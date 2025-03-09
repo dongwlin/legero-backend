@@ -31,12 +31,12 @@ type (
 	}
 
 	UserUpdatePhoneNumberParams struct {
-		UserID         int64
+		UserID         uint64
 		NewPhoneNumber string
 	}
 
 	UserUpdateNicknameParams struct {
-		UserID      int64
+		UserID      uint64
 		NewNickname string
 	}
 )
