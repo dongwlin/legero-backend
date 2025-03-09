@@ -1,0 +1,19 @@
+[http]
+port = 8000
+
+[log]
+level = "info"
+
+[database]
+host = "localhost"
+port = 3306
+username = "root"
+password = "password"
+name = "legero"
+
+[redis]
+host = "localhost"
+port = 6379
+username = "root"
+password = "password"
+db = 0
