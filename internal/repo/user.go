@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/dongwlin/legero-backend/internal/ent"
 	"github.com/dongwlin/legero-backend/internal/ent/user"
@@ -201,11 +202,19 @@ func (r *UserImpl) Update(ctx context.Context, params *model.User) (*model.User,
 
 	if params.Status != "" {
 		update = update.SetStatus(user.Status(params.Status))
+		if params.Status == types.StatusBlocked {
+			update = update.SetBlockedAt(time.Now())
+		}
 	}
 
 	result, err := update.Save(ctx)
 
 	if err != nil {
+
+		if ent.IsNotFound(err) {
+			return nil, errs.ErrUserNotFound
+		}
+
 		return nil, err
 	}
 

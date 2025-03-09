@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/model/types"
 	"github.com/dongwlin/legero-backend/internal/repo"
 )
@@ -19,7 +20,7 @@ type User interface {
 	UpdatePassword(ctx context.Context, params UserUpdatePasswordParams) error
 	UpdatePhoneNumber(ctx context.Context, params UserUpdatePhoneNumberParams) error
 	UpdateNickname(ctx context.Context, params UserUpdateNicknameParams) error
-	BlockUser(ctx context.Context, userID uint64, days int) error
+	BlockUser(ctx context.Context, userID uint64) error
 }
 
 type (
@@ -58,8 +59,14 @@ type UserImpl struct {
 }
 
 // BlockUser implements User.
-func (l *UserImpl) BlockUser(ctx context.Context, userID uint64, days int) error {
-	panic("unimplemented")
+func (l *UserImpl) BlockUser(ctx context.Context, userID uint64) error {
+
+	_, err := l.userRepo.Update(ctx, &model.User{
+		ID:     userID,
+		Status: types.StatusBlocked,
+	})
+
+	return err
 }
 
 // GetUserInfo implements User.
