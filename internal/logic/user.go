@@ -8,6 +8,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/model/types"
 	"github.com/dongwlin/legero-backend/internal/repo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -26,7 +27,6 @@ type User interface {
 type (
 	UserUpdatePasswordParams struct {
 		UserID      uint64
-		OldPassword string
 		NewPassword string
 	}
 
@@ -103,7 +103,20 @@ func (l *UserImpl) UpdateNickname(ctx context.Context, params UserUpdateNickname
 
 // UpdatePassword implements User.
 func (l *UserImpl) UpdatePassword(ctx context.Context, params UserUpdatePasswordParams) error {
-	panic("unimplemented")
+
+	passworddHashBytes, err := bcrypt.GenerateFromPassword([]byte(params.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	passwordHash := string(passworddHashBytes)
+
+	_, err = l.userRepo.Update(ctx, &model.User{
+		ID:           params.UserID,
+		PasswordHash: passwordHash,
+	})
+
+	return err
 }
 
 // UpdatePhoneNumber implements User.
