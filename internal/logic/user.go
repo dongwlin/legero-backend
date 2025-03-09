@@ -92,7 +92,13 @@ func (l *UserImpl) GetUserInfo(ctx context.Context, userID uint64) (*UserInfo, e
 
 // UpdateNickname implements User.
 func (l *UserImpl) UpdateNickname(ctx context.Context, params UserUpdateNicknameParams) error {
-	panic("unimplemented")
+
+	_, err := l.userRepo.Update(ctx, &model.User{
+		ID:       params.UserID,
+		Nickname: params.NewNickname,
+	})
+
+	return err
 }
 
 // UpdatePassword implements User.
