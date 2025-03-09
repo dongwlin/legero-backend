@@ -26,6 +26,7 @@ func (h *User) RegisterRoutes(r fiber.Router) {
 	user := r.Group("/users")
 
 	user.Get("/profile", h.Profile)
+	user.Put("/password", h.UpdatePassword)
 
 }
 
