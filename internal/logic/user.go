@@ -25,7 +25,7 @@ type User interface {
 
 type (
 	UserUpdatePasswordParams struct {
-		UserID      int64
+		UserID      uint64
 		OldPassword string
 		NewPassword string
 	}
