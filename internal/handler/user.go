@@ -160,3 +160,40 @@ func (h *User) UpdateNickname(c *fiber.Ctx) error {
 	resp := response.Success(nil)
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
+
+type UserUpdatePhoneNumberRequest struct {
+	PhoneNumber string `json:"phone_number" validate:"required,len=11"`
+}
+
+func (h *User) UpdatePhoneNumber(c *fiber.Ctx) error {
+
+	userID, ok := c.Locals("userID").(uint64)
+	if ok == false {
+		resp := response.BusinessError("not authenticated")
+		return c.Status(fiber.StatusForbidden).JSON(resp)
+	}
+
+	var req UserUpdatePhoneNumberRequest
+	if err := validator.ValidateBody(c, &req); err != nil {
+		return err
+	}
+
+	err := h.userLogic.UpdatePhoneNumber(c.UserContext(), logic.UserUpdatePhoneNumberParams{
+		UserID:         userID,
+		NewPhoneNumber: req.PhoneNumber,
+	})
+
+	if err != nil {
+
+		if errors.Is(err, errs.ErrUserNotFound) {
+			resp := response.BusinessError("user not found")
+			return c.Status(fiber.StatusNotFound).JSON(resp)
+		}
+
+		resp := response.UnexpectedError()
+		return c.Status(fiber.StatusInternalServerError).JSON(resp)
+	}
+
+	resp := response.Success(nil)
+	return c.Status(fiber.StatusOK).JSON(resp)
+}

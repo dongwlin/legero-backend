@@ -1,12 +1,18 @@
 package validator
 
 import (
+	"regexp"
+
 	"github.com/dongwlin/legero-backend/internal/pkg/errs"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 	"github.com/gofiber/fiber/v2"
+)
+
+var (
+	phoneNumRegexp = regexp.MustCompile(`^1\d{10}$`)
 )
 
 var Validate = New()
@@ -19,13 +25,27 @@ var (
 func init() {
 	trans, _ = uni.GetTranslator("en")
 	en_translations.RegisterDefaultTranslations(Validate, trans)
+
+	Validate.RegisterTranslation("phone_num", trans, func(ut ut.Translator) error {
+		return ut.Add("phone_num", "{0} must be a valid phone number", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("phone_num", fe.Field())
+		return t
+	})
 }
 
 func New() *validator.Validate {
 
 	validate := validator.New()
 
+	validate.RegisterValidation("phone_num", phoneNum)
+
 	return validate
+}
+
+func phoneNum(fl validator.FieldLevel) bool {
+	val := fl.Field().String()
+	return phoneNumRegexp.MatchString(val)
 }
 
 type ValidationError struct {
