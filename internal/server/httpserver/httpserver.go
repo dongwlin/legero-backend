@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bytedance/sonic"
 	"github.com/dongwlin/legero-backend/internal/config"
 	"github.com/dongwlin/legero-backend/internal/handler"
 	"github.com/dongwlin/legero-backend/internal/middleware"
@@ -30,6 +31,11 @@ func NewHttpServer(
 ) *HttpServer {
 
 	app := fiber.New(fiber.Config{
+		AppName: "Legero Backend",
+
+		JSONEncoder: sonic.Marshal,
+		JSONDecoder: sonic.Unmarshal,
+
 		ErrorHandler: handler.Error,
 	})
 
