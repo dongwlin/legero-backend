@@ -6,8 +6,8 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/handler/response"
 	"github.com/dongwlin/legero-backend/internal/logic"
-	"github.com/dongwlin/legero-backend/internal/model/types"
 	"github.com/dongwlin/legero-backend/internal/pkg/errs"
+	"github.com/dongwlin/legero-backend/internal/pkg/validator"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -27,12 +27,12 @@ func (h *Auth) RegisterRoutes(r fiber.Router) {
 	auth := r.Group("/auth")
 
 	auth.Post("/login", h.Login)
-	auth.Post("/register", h.Register)
+	// auth.Post("/register", h.Register)
 }
 
 type AuthLoginRequest struct {
-	Identifier string `json:"identifier"`
-	Password   string `json:"password"`
+	Identifier string `json:"identifier" validate:"required,max=64"`
+	Password   string `json:"password"  validate:"required,max=64"`
 }
 
 type AuthLoginResposeData struct {
@@ -43,9 +43,8 @@ type AuthLoginResposeData struct {
 func (h *Auth) Login(c *fiber.Ctx) error {
 
 	var req AuthLoginRequest
-	if err := c.BodyParser(&req); err != nil {
-		resp := response.BusinessError("invalid params")
-		return c.Status(fiber.StatusBadRequest).JSON(resp)
+	if err := validator.ValidateBody(c, &req); err != nil {
+		return err
 	}
 
 	result, err := h.authLogic.Login(c.UserContext(), logic.AuthLoginParams{
@@ -73,44 +72,44 @@ func (h *Auth) Login(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
-type AuthRegisterRequest struct {
-	Nickname    string `json:"nickname"`
-	Username    string `json:"username"`
-	PhoneNumber string `json:"phone_number"`
-	Password    string `json:"password"`
-}
+// type AuthRegisterRequest struct {
+// 	Nickname    string `json:"nickname"`
+// 	Username    string `json:"username"`
+// 	PhoneNumber string `json:"phone_number"`
+// 	Password    string `json:"password"`
+// }
 
-func (h *Auth) Register(c *fiber.Ctx) error {
+// func (h *Auth) Register(c *fiber.Ctx) error {
 
-	var req AuthRegisterRequest
-	if err := c.BodyParser(&req); err != nil {
-		resp := response.BusinessError("invalid params")
-		return c.Status(fiber.StatusBadRequest).JSON(resp)
-	}
+// 	var req AuthRegisterRequest
+// 	if err := c.BodyParser(&req); err != nil {
+// 		resp := response.BusinessError("invalid params")
+// 		return c.Status(fiber.StatusBadRequest).JSON(resp)
+// 	}
 
-	_, err := h.authLogic.Register(c.UserContext(), logic.AuthRegisterParams{
-		Nickname:    req.Nickname,
-		Username:    req.Username,
-		PhoneNumber: req.PhoneNumber,
-		Password:    req.Password,
-		Role:        types.RoleWaiter,
-	})
-	if err != nil {
+// 	_, err := h.authLogic.Register(c.UserContext(), logic.AuthRegisterParams{
+// 		Nickname:    req.Nickname,
+// 		Username:    req.Username,
+// 		PhoneNumber: req.PhoneNumber,
+// 		Password:    req.Password,
+// 		Role:        types.RoleWaiter,
+// 	})
+// 	if err != nil {
 
-		if errors.Is(err, errs.ErrUsernameAlreadyExists) {
-			resp := response.BusinessError("username already exists")
-			return c.Status(fiber.StatusBadRequest).JSON(resp)
-		}
+// 		if errors.Is(err, errs.ErrUsernameAlreadyExists) {
+// 			resp := response.BusinessError("username already exists")
+// 			return c.Status(fiber.StatusBadRequest).JSON(resp)
+// 		}
 
-		if errors.Is(err, errs.ErrPhoneNumberAlreadyExists) {
-			resp := response.BusinessError("phone number already exists")
-			return c.Status(fiber.StatusBadRequest).JSON(resp)
-		}
+// 		if errors.Is(err, errs.ErrPhoneNumberAlreadyExists) {
+// 			resp := response.BusinessError("phone number already exists")
+// 			return c.Status(fiber.StatusBadRequest).JSON(resp)
+// 		}
 
-		resp := response.UnexpectedError()
-		return c.Status(fiber.StatusInternalServerError).JSON(resp)
-	}
+// 		resp := response.UnexpectedError()
+// 		return c.Status(fiber.StatusInternalServerError).JSON(resp)
+// 	}
 
-	resp := response.Success(nil)
-	return c.Status(fiber.StatusOK).JSON(resp)
-}
+// 	resp := response.Success(nil)
+// 	return c.Status(fiber.StatusOK).JSON(resp)
+// }

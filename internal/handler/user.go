@@ -8,6 +8,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/logic"
 	"github.com/dongwlin/legero-backend/internal/model/types"
 	"github.com/dongwlin/legero-backend/internal/pkg/errs"
+	"github.com/dongwlin/legero-backend/internal/pkg/validator"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -74,8 +75,8 @@ func (h *User) Profile(c *fiber.Ctx) error {
 }
 
 type UserUpdatePasswordRequest struct {
-	OldPassword string `json:"old_password"`
-	NewPassword string `json:"new_password"`
+	OldPassword string `json:"old_password" validate:"required,min=8,max=64"`
+	NewPassword string `json:"new_password" validate:"required,min=8,max=64"`
 }
 
 func (h *User) UpdatePassword(c *fiber.Ctx) error {
@@ -87,9 +88,8 @@ func (h *User) UpdatePassword(c *fiber.Ctx) error {
 	}
 
 	var req UserUpdatePasswordRequest
-	if err := c.BodyParser(&req); err != nil {
-		resp := response.BusinessError("invalid params")
-		return c.Status(fiber.StatusBadRequest).JSON(resp)
+	if err := validator.ValidateBody(c, &req); err != nil {
+		return err
 	}
 
 	if req.OldPassword == req.NewPassword {
@@ -124,7 +124,7 @@ func (h *User) UpdatePassword(c *fiber.Ctx) error {
 }
 
 type UserUpdateNicknameRequest struct {
-	Nickname string `json:"nickname"`
+	Nickname string `json:"nickname" validate:"required,max=64"`
 }
 
 func (h *User) UpdateNickname(c *fiber.Ctx) error {

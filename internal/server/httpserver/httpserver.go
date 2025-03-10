@@ -29,7 +29,9 @@ func NewHttpServer(
 	userHandler *handler.User,
 ) *HttpServer {
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ErrorHandler: handler.Error,
+	})
 
 	srv := &HttpServer{
 		config: conf,

@@ -2,6 +2,16 @@ package errs
 
 import "errors"
 
+type Error struct {
+	StatusCode int
+	Message    string
+	Data       map[string]any
+}
+
+func (e *Error) Error() string {
+	return e.Message
+}
+
 var (
 	// user
 	ErrUserNotFound             = errors.New("user not found")
