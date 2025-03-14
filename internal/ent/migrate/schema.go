@@ -8,6 +8,38 @@ import (
 )
 
 var (
+	// OrderItemsColumns holds the columns for the "order_items" table.
+	OrderItemsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "daily_id", Type: field.TypeUint64},
+		{Name: "include_noodles", Type: field.TypeBool, Default: true},
+		{Name: "noodle_type", Type: field.TypeEnum, Enums: []string{"none", "flat_rice", "thin_rice", "yi", "custom"}},
+		{Name: "custom_noodle_type", Type: field.TypeString, Default: ""},
+		{Name: "noodle_amount", Type: field.TypeEnum, Enums: []string{"none", "light", "regular", "heavy", "exclude"}},
+		{Name: "extra_noodle_blocks", Type: field.TypeInt, Default: 0},
+		{Name: "size", Type: field.TypeEnum, Enums: []string{"none", "small", "middle", "large", "custom"}},
+		{Name: "custom_size_price", Type: field.TypeFloat64, Default: 0},
+		{Name: "meat_available", Type: field.TypeJSON},
+		{Name: "meat_excluded", Type: field.TypeJSON},
+		{Name: "greens", Type: field.TypeEnum, Enums: []string{"none", "light", "regular", "heavy", "exclude"}},
+		{Name: "scallion", Type: field.TypeEnum, Enums: []string{"none", "light", "regular", "heavy", "exclude"}},
+		{Name: "pepper", Type: field.TypeEnum, Enums: []string{"none", "light", "regular", "heavy", "exclude"}},
+		{Name: "dining_method", Type: field.TypeEnum, Enums: []string{"none", "dine_in", "take_out"}},
+		{Name: "packaging", Type: field.TypeEnum, Enums: []string{"none", "plastic_box", "plastic_bag", "customer_own"}},
+		{Name: "packaging_method", Type: field.TypeEnum, Enums: []string{"none", "combined", "noodle_soup_sep"}},
+		{Name: "note", Type: field.TypeString, Default: ""},
+		{Name: "price", Type: field.TypeFloat64, Default: 0},
+		{Name: "progress_noodles", Type: field.TypeEnum, Enums: []string{"none", "unrequired", "not-started", "in-progress", "completed"}},
+		{Name: "progress_meat", Type: field.TypeEnum, Enums: []string{"none", "unrequired", "not-started", "in-progress", "completed"}},
+		{Name: "completed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// OrderItemsTable holds the schema information for the "order_items" table.
+	OrderItemsTable = &schema.Table{
+		Name:       "order_items",
+		Columns:    OrderItemsColumns,
+		PrimaryKey: []*schema.Column{OrderItemsColumns[0]},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
@@ -29,6 +61,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		OrderItemsTable,
 		UsersTable,
 	}
 )

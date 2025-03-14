@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/dongwlin/legero-backend/internal/ent/orderitem"
 	"github.com/dongwlin/legero-backend/internal/ent/schema"
 	"github.com/dongwlin/legero-backend/internal/ent/user"
 )
@@ -13,6 +14,44 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	orderitemFields := schema.OrderItem{}.Fields()
+	_ = orderitemFields
+	// orderitemDescIncludeNoodles is the schema descriptor for include_noodles field.
+	orderitemDescIncludeNoodles := orderitemFields[1].Descriptor()
+	// orderitem.DefaultIncludeNoodles holds the default value on creation for the include_noodles field.
+	orderitem.DefaultIncludeNoodles = orderitemDescIncludeNoodles.Default.(bool)
+	// orderitemDescCustomNoodleType is the schema descriptor for custom_noodle_type field.
+	orderitemDescCustomNoodleType := orderitemFields[3].Descriptor()
+	// orderitem.DefaultCustomNoodleType holds the default value on creation for the custom_noodle_type field.
+	orderitem.DefaultCustomNoodleType = orderitemDescCustomNoodleType.Default.(string)
+	// orderitemDescExtraNoodleBlocks is the schema descriptor for extra_noodle_blocks field.
+	orderitemDescExtraNoodleBlocks := orderitemFields[5].Descriptor()
+	// orderitem.DefaultExtraNoodleBlocks holds the default value on creation for the extra_noodle_blocks field.
+	orderitem.DefaultExtraNoodleBlocks = orderitemDescExtraNoodleBlocks.Default.(int)
+	// orderitemDescCustomSizePrice is the schema descriptor for custom_size_price field.
+	orderitemDescCustomSizePrice := orderitemFields[7].Descriptor()
+	// orderitem.DefaultCustomSizePrice holds the default value on creation for the custom_size_price field.
+	orderitem.DefaultCustomSizePrice = orderitemDescCustomSizePrice.Default.(float64)
+	// orderitemDescMeatAvailable is the schema descriptor for meat_available field.
+	orderitemDescMeatAvailable := orderitemFields[8].Descriptor()
+	// orderitem.DefaultMeatAvailable holds the default value on creation for the meat_available field.
+	orderitem.DefaultMeatAvailable = orderitemDescMeatAvailable.Default.([]string)
+	// orderitemDescMeatExcluded is the schema descriptor for meat_excluded field.
+	orderitemDescMeatExcluded := orderitemFields[9].Descriptor()
+	// orderitem.DefaultMeatExcluded holds the default value on creation for the meat_excluded field.
+	orderitem.DefaultMeatExcluded = orderitemDescMeatExcluded.Default.([]string)
+	// orderitemDescNote is the schema descriptor for note field.
+	orderitemDescNote := orderitemFields[16].Descriptor()
+	// orderitem.DefaultNote holds the default value on creation for the note field.
+	orderitem.DefaultNote = orderitemDescNote.Default.(string)
+	// orderitemDescPrice is the schema descriptor for price field.
+	orderitemDescPrice := orderitemFields[17].Descriptor()
+	// orderitem.DefaultPrice holds the default value on creation for the price field.
+	orderitem.DefaultPrice = orderitemDescPrice.Default.(float64)
+	// orderitemDescCreatedAt is the schema descriptor for created_at field.
+	orderitemDescCreatedAt := orderitemFields[21].Descriptor()
+	// orderitem.DefaultCreatedAt holds the default value on creation for the created_at field.
+	orderitem.DefaultCreatedAt = orderitemDescCreatedAt.Default.(func() time.Time)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescNickname is the schema descriptor for nickname field.
