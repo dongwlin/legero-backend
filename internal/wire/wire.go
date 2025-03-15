@@ -8,6 +8,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/config"
 	"github.com/dongwlin/legero-backend/internal/infra"
 	"github.com/dongwlin/legero-backend/internal/logic"
+	"github.com/dongwlin/legero-backend/internal/pkg/dailyid"
 	"github.com/dongwlin/legero-backend/internal/pkg/logger"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/server"
@@ -18,6 +19,7 @@ var GlobalSet = wire.NewSet(
 	config.Provider,
 	logger.Provider,
 	infra.Provider,
+	dailyid.Provider,
 	repo.Provider,
 	logic.Provider,
 )

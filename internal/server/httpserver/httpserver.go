@@ -19,8 +19,10 @@ type HttpServer struct {
 
 	tokenRepo repo.Token
 
-	authHandler *handler.Auth
-	userHandler *handler.User
+	authHandler      *handler.Auth
+	userHandler      *handler.User
+	orderItemHandler *handler.OrderItem
+	sseHandler       *handler.SSE
 }
 
 func NewHttpServer(
@@ -28,6 +30,8 @@ func NewHttpServer(
 	tokenRepo repo.Token,
 	authHandler *handler.Auth,
 	userHandler *handler.User,
+	orderItemHandler *handler.OrderItem,
+	sseHandler *handler.SSE,
 ) *HttpServer {
 
 	app := fiber.New(fiber.Config{
@@ -44,9 +48,11 @@ func NewHttpServer(
 
 		app: app,
 
-		tokenRepo:   tokenRepo,
-		authHandler: authHandler,
-		userHandler: userHandler,
+		tokenRepo:        tokenRepo,
+		authHandler:      authHandler,
+		userHandler:      userHandler,
+		orderItemHandler: orderItemHandler,
+		sseHandler:       sseHandler,
 	}
 
 	srv.SetupRoutes()
@@ -67,6 +73,9 @@ func (s *HttpServer) SetupRoutes() {
 	authMiddleware := middleware.Auth(s.tokenRepo)
 	auth := r.Use(authMiddleware)
 	s.userHandler.RegisterRoutes(auth)
+	s.orderItemHandler.RegisterRoutes(auth)
+	s.sseHandler.RegisterRoutes(auth)
+
 }
 
 func (s *HttpServer) Run() error {

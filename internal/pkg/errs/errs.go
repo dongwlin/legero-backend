@@ -22,4 +22,7 @@ var (
 	ErrWrongPassword = errors.New("incorrect password")
 	ErrUserBlocked   = errors.New("user is blocked")
 	ErrInvalidToken  = errors.New("invalid token")
+
+	// order item
+	ErrInvalidCustomNoodleType = errors.New("invalid custom noodle type")
 )

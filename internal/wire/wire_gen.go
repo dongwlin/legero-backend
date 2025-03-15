@@ -12,6 +12,8 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler"
 	"github.com/dongwlin/legero-backend/internal/infra"
 	"github.com/dongwlin/legero-backend/internal/logic"
+	"github.com/dongwlin/legero-backend/internal/pkg/broker"
+	"github.com/dongwlin/legero-backend/internal/pkg/dailyid"
 	"github.com/dongwlin/legero-backend/internal/pkg/logger"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/server/httpserver"
@@ -37,11 +39,17 @@ func InitApp() (*app.App, error) {
 	handlerAuth := handler.NewAuth(auth)
 	logicUser := logic.NewUser(user)
 	handlerUser := handler.NewUser(logicUser)
-	httpServer := httpserver.NewHttpServer(configConfig, token, handlerAuth, handlerUser)
+	brokerBroker := broker.NewBroker(configConfig)
+	dailyIDGenerator := dailyid.New(redisClient)
+	orderItem := repo.NewOrderItem(client)
+	logicOrderItem := logic.NewOrderItem(dailyIDGenerator, orderItem)
+	handlerOrderItem := handler.NewOrderItem(brokerBroker, logicOrderItem)
+	sse := handler.NewSSE(brokerBroker)
+	httpServer := httpserver.NewHttpServer(configConfig, token, handlerAuth, handlerUser, handlerOrderItem, sse)
 	appApp := app.New(configConfig, zerologLogger, client, redisClient, httpServer)
 	return appApp, nil
 }
 
 // wire.go:
 
-var GlobalSet = wire.NewSet(config.Provider, logger.Provider, infra.Provider, repo.Provider, logic.Provider)
+var GlobalSet = wire.NewSet(config.Provider, logger.Provider, infra.Provider, dailyid.Provider, repo.Provider, logic.Provider)
