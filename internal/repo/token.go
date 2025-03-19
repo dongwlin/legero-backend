@@ -64,7 +64,7 @@ func (t *TokenImpl) Create(ctx context.Context, token *model.Token) (*model.Toke
 	txn := func(tx *redis.Tx) error {
 
 		count, err := tx.SCard(ctx, userTokenKey).Result()
-		if err != nil && err != redis.Nil {
+		if err != nil && !errors.Is(err, redis.Nil) {
 			return err
 		}
 		if count > 10 {
@@ -93,7 +93,7 @@ func (t *TokenImpl) GetByToken(ctx context.Context, tokenStr string) (*model.Tok
 	key := t.tokenKey(tokenStr)
 	data, err := t.rdb.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, ErrTokenNotFound
 		}
 
@@ -161,7 +161,7 @@ func (t *TokenImpl) GetByUserID(ctx context.Context, userID uint64) ([]*model.To
 	userTokenKey := t.userTokenKey(userID)
 	tokens, err := t.rdb.SMembers(ctx, userTokenKey).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 
@@ -181,7 +181,7 @@ func (t *TokenImpl) GetByUserID(ctx context.Context, userID uint64) ([]*model.To
 	for _, token := range tokens {
 		data, err := cmds[token].Bytes()
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				go t.asyncCleanup(ctx, userID, token)
 				continue
 			}
