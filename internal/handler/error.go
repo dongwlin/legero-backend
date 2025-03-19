@@ -9,21 +9,27 @@ import (
 func Error(c *fiber.Ctx, err error) error {
 
 	var (
-		statusCode int
-		msg        string
-		data       any
+		httpCode int
+		msg      string
+		data     any
 	)
 
 	switch e := err.(type) {
+	case *fiber.Error:
+
+		return fiber.DefaultErrorHandler(c, e)
+
 	case *errs.Error:
-		statusCode = e.StatusCode
-		msg = e.Message
-		data = e.Data
+
+		httpCode = e.HTTPCode()
+		msg = e.Message()
+		data = e.Details()
+		resp := response.BusinessError(msg, data)
+		return c.Status(httpCode).JSON(resp)
+
 	default:
+
 		resp := response.UnexpectedError()
 		return c.Status(fiber.StatusInternalServerError).JSON(resp)
 	}
-
-	resp := response.BusinessError(msg, data)
-	return c.Status(statusCode).JSON(resp)
 }
