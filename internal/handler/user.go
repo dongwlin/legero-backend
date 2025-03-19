@@ -130,7 +130,7 @@ type UserUpdateNicknameRequest struct {
 func (h *User) UpdateNickname(c *fiber.Ctx) error {
 
 	userID, ok := c.Locals("userID").(uint64)
-	if ok == false {
+	if !ok {
 		resp := response.BusinessError("not authenticated")
 		return c.Status(fiber.StatusForbidden).JSON(resp)
 	}
@@ -168,7 +168,7 @@ type UserUpdatePhoneNumberRequest struct {
 func (h *User) UpdatePhoneNumber(c *fiber.Ctx) error {
 
 	userID, ok := c.Locals("userID").(uint64)
-	if ok == false {
+	if !ok {
 		resp := response.BusinessError("not authenticated")
 		return c.Status(fiber.StatusForbidden).JSON(resp)
 	}
