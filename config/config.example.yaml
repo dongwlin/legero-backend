@@ -1,0 +1,26 @@
+app:
+  env: "development"
+
+server:
+  httpAddr: ":8080"
+
+database:
+  url: "postgres://postgres:postgres@localhost:5432/legero?sslmode=disable"
+
+auth:
+  pasetoSymmetricKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+  accessTokenTTL: "15m"
+  refreshTokenTTL: "720h"
+
+biz:
+  timezone: "Asia/Shanghai"
+
+sse:
+  pingInterval: "20s"
+
+argon2:
+  memoryKiB: 65536
+  iterations: 3
+  parallelism: 2
+  saltLength: 16
+  keyLength: 32
