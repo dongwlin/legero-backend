@@ -289,6 +289,9 @@ func (s *Service) ClearWorkspace(ctx context.Context, actor Actor, confirm bool)
 		if err != nil {
 			return err
 		}
+		if err := s.counters.ResetWorkspace(ctx, tx, actor.WorkspaceID); err != nil {
+			return err
+		}
 		cleared = count
 		return nil
 	}); err != nil {

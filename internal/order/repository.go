@@ -27,6 +27,7 @@ type Repository interface {
 
 type CounterRepository interface {
 	Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error)
+	ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) error
 }
 
 type BunRepository struct{}
@@ -219,6 +220,17 @@ returning last_seq
 	}
 
 	return lastSeq - quantity + 1, nil
+}
+
+func (r *BunCounterRepository) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) error {
+	if _, err := db.NewDelete().
+		Table("workspace_daily_counters").
+		Where("workspace_id = ?", workspaceID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("reset workspace counter: %w", err)
+	}
+
+	return nil
 }
 
 func encodeCursor(status ListStatus, model OrderModel) (string, error) {
