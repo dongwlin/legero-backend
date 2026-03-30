@@ -32,7 +32,7 @@ from orders
 where workspace_id = ?
   and (created_at at time zone ?)::date between ? and ?
 group by biz_date
-order by biz_date asc
+order by biz_date desc
 `, timezone, workspaceID, timezone, from.Format("2006-01-02"), to.Format("2006-01-02")).Scan(ctx, &models); err != nil {
 		return nil, fmt.Errorf("query daily stats: %w", err)
 	}
