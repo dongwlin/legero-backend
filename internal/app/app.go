@@ -42,7 +42,18 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 
 	systemClock := clock.SystemClock{}
 	idGenerator := ids.UUIDGenerator{}
-	realtimeHub := realtime.NewHub(location, cfg.SSEPingInterval, systemClock.Now)
+	realtimeBroker := realtime.NewBroker()
+	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, systemClock.Now)
+	realtimeHandler := realtime.NewHandler(
+		realtimeBroker,
+		realtimeSessions,
+		location,
+		cfg.RealtimeHeartbeatInterval,
+		cfg.WSWriteTimeout,
+		cfg.WSReadTimeout,
+		cfg.WSAllowedOrigins,
+		systemClock.Now,
+	)
 
 	userRepo := &auth.BunUserRepository{}
 	refreshRepo := &auth.BunRefreshTokenRepository{}
@@ -58,7 +69,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		systemClock,
 		idGenerator,
 		location,
-		realtimeHub,
+		realtimeBroker,
 	)
 
 	authService, err := auth.NewService(
@@ -92,7 +103,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		authHandler,
 		orderHandler,
 		statsHandler,
-		realtimeHub,
+		realtimeHandler,
 	)
 
 	server := &http.Server{

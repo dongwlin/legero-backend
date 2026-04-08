@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -16,15 +17,19 @@ const (
 )
 
 type Config struct {
-	AppEnv             string
-	HTTPAddr           string
-	DatabaseURL        string
-	PasetoSymmetricKey []byte
-	AccessTokenTTL     time.Duration
-	RefreshTokenTTL    time.Duration
-	BizTimezone        string
-	SSEPingInterval    time.Duration
-	Argon2             Argon2Config
+	AppEnv                    string
+	HTTPAddr                  string
+	DatabaseURL               string
+	PasetoSymmetricKey        []byte
+	AccessTokenTTL            time.Duration
+	RefreshTokenTTL           time.Duration
+	BizTimezone               string
+	RealtimeHeartbeatInterval time.Duration
+	RealtimeSessionTTL        time.Duration
+	WSWriteTimeout            time.Duration
+	WSReadTimeout             time.Duration
+	WSAllowedOrigins          []string
+	Argon2                    Argon2Config
 }
 
 type Argon2Config struct {
@@ -82,19 +87,23 @@ func newViper() (*viper.Viper, error) {
 
 func bindEnv(v *viper.Viper) error {
 	bindings := map[string]string{
-		"app.env":                 "APP_ENV",
-		"server.httpAddr":         "HTTP_ADDR",
-		"database.url":            "DATABASE_URL",
-		"auth.pasetoSymmetricKey": "PASETO_SYMMETRIC_KEY",
-		"auth.accessTokenTTL":     "ACCESS_TOKEN_TTL",
-		"auth.refreshTokenTTL":    "REFRESH_TOKEN_TTL",
-		"biz.timezone":            "BIZ_TIMEZONE",
-		"sse.pingInterval":        "SSE_PING_INTERVAL",
-		"argon2.memoryKiB":        "ARGON2_MEMORY_KIB",
-		"argon2.iterations":       "ARGON2_ITERATIONS",
-		"argon2.parallelism":      "ARGON2_PARALLELISM",
-		"argon2.saltLength":       "ARGON2_SALT_LENGTH",
-		"argon2.keyLength":        "ARGON2_KEY_LENGTH",
+		"app.env":                    "APP_ENV",
+		"server.httpAddr":            "HTTP_ADDR",
+		"database.url":               "DATABASE_URL",
+		"auth.pasetoSymmetricKey":    "PASETO_SYMMETRIC_KEY",
+		"auth.accessTokenTTL":        "ACCESS_TOKEN_TTL",
+		"auth.refreshTokenTTL":       "REFRESH_TOKEN_TTL",
+		"biz.timezone":               "BIZ_TIMEZONE",
+		"realtime.heartbeatInterval": "REALTIME_HEARTBEAT_INTERVAL",
+		"realtime.sessionTTL":        "REALTIME_SESSION_TTL",
+		"ws.writeTimeout":            "WS_WRITE_TIMEOUT",
+		"ws.readTimeout":             "WS_READ_TIMEOUT",
+		"ws.allowedOrigins":          "WS_ALLOWED_ORIGINS",
+		"argon2.memoryKiB":           "ARGON2_MEMORY_KIB",
+		"argon2.iterations":          "ARGON2_ITERATIONS",
+		"argon2.parallelism":         "ARGON2_PARALLELISM",
+		"argon2.saltLength":          "ARGON2_SALT_LENGTH",
+		"argon2.keyLength":           "ARGON2_KEY_LENGTH",
 	}
 
 	for key, envName := range bindings {
@@ -126,14 +135,18 @@ func buildConfig(v *viper.Viper) (*Config, error) {
 	}
 
 	return &Config{
-		AppEnv:             stringOrDefault(v, "app.env", "development"),
-		HTTPAddr:           stringOrDefault(v, "server.httpAddr", ":8080"),
-		DatabaseURL:        databaseURL,
-		PasetoSymmetricKey: keyBytes,
-		AccessTokenTTL:     durationOrDefault(v, "auth.accessTokenTTL", 15*time.Minute),
-		RefreshTokenTTL:    durationOrDefault(v, "auth.refreshTokenTTL", 7*24*time.Hour),
-		BizTimezone:        stringOrDefault(v, "biz.timezone", "Asia/Shanghai"),
-		SSEPingInterval:    durationOrDefault(v, "sse.pingInterval", 20*time.Second),
+		AppEnv:                    stringOrDefault(v, "app.env", "development"),
+		HTTPAddr:                  stringOrDefault(v, "server.httpAddr", ":8080"),
+		DatabaseURL:               databaseURL,
+		PasetoSymmetricKey:        keyBytes,
+		AccessTokenTTL:            durationOrDefault(v, "auth.accessTokenTTL", 15*time.Minute),
+		RefreshTokenTTL:           durationOrDefault(v, "auth.refreshTokenTTL", 7*24*time.Hour),
+		BizTimezone:               stringOrDefault(v, "biz.timezone", "Asia/Shanghai"),
+		RealtimeHeartbeatInterval: durationOrDefault(v, "realtime.heartbeatInterval", 20*time.Second),
+		RealtimeSessionTTL:        durationOrDefault(v, "realtime.sessionTTL", 30*time.Second),
+		WSWriteTimeout:            durationOrDefault(v, "ws.writeTimeout", 10*time.Second),
+		WSReadTimeout:             durationOrDefault(v, "ws.readTimeout", 60*time.Second),
+		WSAllowedOrigins:          stringSliceOrDefault(v, "ws.allowedOrigins", []string{"*"}),
 		Argon2: Argon2Config{
 			MemoryKiB:   uint32OrDefault(v, "argon2.memoryKiB", 64*1024),
 			Iterations:  uint32OrDefault(v, "argon2.iterations", 3),
@@ -196,6 +209,48 @@ func stringValue(v *viper.Viper, path string) string {
 	default:
 		return fmt.Sprint(typed)
 	}
+}
+
+func stringSliceOrDefault(v *viper.Viper, path string, fallback []string) []string {
+	copyFallback := append([]string(nil), fallback...)
+
+	value := v.Get(path)
+	switch typed := value.(type) {
+	case nil:
+		return copyFallback
+	case []string:
+		if cleaned := cleanStringSlice(typed); len(cleaned) > 0 {
+			return cleaned
+		}
+		return copyFallback
+	case []any:
+		items := make([]string, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, fmt.Sprint(item))
+		}
+		if cleaned := cleanStringSlice(items); len(cleaned) > 0 {
+			return cleaned
+		}
+		return copyFallback
+	case string:
+		if cleaned := cleanStringSlice(strings.Split(typed, ",")); len(cleaned) > 0 {
+			return cleaned
+		}
+		return copyFallback
+	default:
+		return copyFallback
+	}
+}
+
+func cleanStringSlice(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	return cleaned
 }
 
 func decodeKey(value string) ([]byte, error) {

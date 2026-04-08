@@ -20,7 +20,7 @@ func newRouter(
 	authHandler *auth.Handler,
 	orderHandler *order.Handler,
 	statsHandler *stats.Handler,
-	realtimeHub *realtime.Hub,
+	realtimeHandler *realtime.Handler,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(
@@ -35,6 +35,7 @@ func newRouter(
 	api := router.Group("/api")
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/refresh", authHandler.Refresh)
+	api.GET("/ws", realtimeHandler.ServeWS)
 
 	protected := api.Group("/")
 	protected.Use(auth.Middleware(authService))
@@ -46,6 +47,7 @@ func newRouter(
 	protected.POST("/orders/:id/actions/toggle-served", orderHandler.ToggleServed)
 	protected.DELETE("/orders/:id", orderHandler.Delete)
 	protected.POST("/orders/actions/clear", orderHandler.Clear)
+	protected.POST("/realtime/session", realtimeHandler.CreateSession)
 	protected.GET("/stats/daily", func(c *gin.Context) {
 		authCtx, ok := auth.ContextFromGin(c)
 		if !ok {
@@ -53,14 +55,6 @@ func newRouter(
 			return
 		}
 		statsHandler.Daily(c, authCtx.WorkspaceID)
-	})
-	protected.GET("/events", func(c *gin.Context) {
-		authCtx, ok := auth.ContextFromGin(c)
-		if !ok {
-			httpx.AbortError(c, httpx.UnauthorizedError("missing auth context"))
-			return
-		}
-		realtimeHub.Serve(c, authCtx.WorkspaceID)
 	})
 
 	return router

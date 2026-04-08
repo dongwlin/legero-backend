@@ -15,8 +15,15 @@ auth:
 biz:
   timezone: "Asia/Shanghai"
 
-sse:
-  pingInterval: "20s"
+realtime:
+  heartbeatInterval: "20s"
+  sessionTTL: "30s"
+
+ws:
+  writeTimeout: "10s"
+  readTimeout: "60s"
+  allowedOrigins:
+    - "*"
 
 argon2:
   memoryKiB: 65536

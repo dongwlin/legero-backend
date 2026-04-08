@@ -25,8 +25,12 @@ auth:
   accessTokenTTL: "30m"
 biz:
   timezone: "UTC"
-sse:
-  pingInterval: "10s"
+realtime:
+  heartbeatInterval: "10s"
+ws:
+  allowedOrigins:
+    - "http://localhost:5173"
+    - "capacitor://localhost"
 argon2:
   iterations: 5
   parallelism: 4
@@ -55,8 +59,23 @@ argon2:
 	if cfg.BizTimezone != "UTC" {
 		t.Fatalf("BizTimezone = %q, want %q", cfg.BizTimezone, "UTC")
 	}
-	if cfg.SSEPingInterval != 10*time.Second {
-		t.Fatalf("SSEPingInterval = %v, want %v", cfg.SSEPingInterval, 10*time.Second)
+	if cfg.RealtimeHeartbeatInterval != 10*time.Second {
+		t.Fatalf("RealtimeHeartbeatInterval = %v, want %v", cfg.RealtimeHeartbeatInterval, 10*time.Second)
+	}
+	if cfg.RealtimeSessionTTL != 30*time.Second {
+		t.Fatalf("RealtimeSessionTTL = %v, want %v", cfg.RealtimeSessionTTL, 30*time.Second)
+	}
+	if cfg.WSWriteTimeout != 10*time.Second {
+		t.Fatalf("WSWriteTimeout = %v, want %v", cfg.WSWriteTimeout, 10*time.Second)
+	}
+	if cfg.WSReadTimeout != 60*time.Second {
+		t.Fatalf("WSReadTimeout = %v, want %v", cfg.WSReadTimeout, 60*time.Second)
+	}
+	if len(cfg.WSAllowedOrigins) != 2 {
+		t.Fatalf("WSAllowedOrigins length = %d, want %d", len(cfg.WSAllowedOrigins), 2)
+	}
+	if cfg.WSAllowedOrigins[0] != "http://localhost:5173" || cfg.WSAllowedOrigins[1] != "capacitor://localhost" {
+		t.Fatalf("WSAllowedOrigins = %v, want configured origins", cfg.WSAllowedOrigins)
 	}
 	if cfg.Argon2.MemoryKiB != 64*1024 {
 		t.Fatalf("Argon2.MemoryKiB = %d, want %d", cfg.Argon2.MemoryKiB, 64*1024)
@@ -99,6 +118,8 @@ argon2:
 	t.Setenv("DATABASE_URL", "postgres://env.example/legero")
 	t.Setenv("PASETO_SYMMETRIC_KEY", overrideKey)
 	t.Setenv("ACCESS_TOKEN_TTL", "45m")
+	t.Setenv("REALTIME_HEARTBEAT_INTERVAL", "25s")
+	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com,capacitor://localhost")
 	t.Setenv("ARGON2_ITERATIONS", "9")
 
 	cfg, err := loadFromFile(configPath)
@@ -117,6 +138,15 @@ argon2:
 	}
 	if cfg.AccessTokenTTL != 45*time.Minute {
 		t.Fatalf("AccessTokenTTL = %v, want %v", cfg.AccessTokenTTL, 45*time.Minute)
+	}
+	if cfg.RealtimeHeartbeatInterval != 25*time.Second {
+		t.Fatalf("RealtimeHeartbeatInterval = %v, want %v", cfg.RealtimeHeartbeatInterval, 25*time.Second)
+	}
+	if len(cfg.WSAllowedOrigins) != 2 {
+		t.Fatalf("WSAllowedOrigins length = %d, want %d", len(cfg.WSAllowedOrigins), 2)
+	}
+	if cfg.WSAllowedOrigins[0] != "https://app.example.com" || cfg.WSAllowedOrigins[1] != "capacitor://localhost" {
+		t.Fatalf("WSAllowedOrigins = %v, want env override", cfg.WSAllowedOrigins)
 	}
 	if cfg.Argon2.Iterations != 9 {
 		t.Fatalf("Argon2.Iterations = %d, want %d", cfg.Argon2.Iterations, 9)
@@ -140,8 +170,13 @@ auth:
   pasetoSymmetricKey: "%s"
   accessTokenTTL: "not-a-duration"
   refreshTokenTTL: "still-not-a-duration"
-sse:
-  pingInterval: "bad"
+realtime:
+  heartbeatInterval: "bad"
+  sessionTTL: "still-bad"
+ws:
+  writeTimeout: "bad"
+  readTimeout: "bad"
+  allowedOrigins: ""
 argon2:
   memoryKiB: "bad"
   iterations: "bad"
@@ -161,8 +196,20 @@ argon2:
 	if cfg.RefreshTokenTTL != 7*24*time.Hour {
 		t.Fatalf("RefreshTokenTTL = %v, want %v", cfg.RefreshTokenTTL, 7*24*time.Hour)
 	}
-	if cfg.SSEPingInterval != 20*time.Second {
-		t.Fatalf("SSEPingInterval = %v, want %v", cfg.SSEPingInterval, 20*time.Second)
+	if cfg.RealtimeHeartbeatInterval != 20*time.Second {
+		t.Fatalf("RealtimeHeartbeatInterval = %v, want %v", cfg.RealtimeHeartbeatInterval, 20*time.Second)
+	}
+	if cfg.RealtimeSessionTTL != 30*time.Second {
+		t.Fatalf("RealtimeSessionTTL = %v, want %v", cfg.RealtimeSessionTTL, 30*time.Second)
+	}
+	if cfg.WSWriteTimeout != 10*time.Second {
+		t.Fatalf("WSWriteTimeout = %v, want %v", cfg.WSWriteTimeout, 10*time.Second)
+	}
+	if cfg.WSReadTimeout != 60*time.Second {
+		t.Fatalf("WSReadTimeout = %v, want %v", cfg.WSReadTimeout, 60*time.Second)
+	}
+	if len(cfg.WSAllowedOrigins) != 1 || cfg.WSAllowedOrigins[0] != "*" {
+		t.Fatalf("WSAllowedOrigins = %v, want [*]", cfg.WSAllowedOrigins)
 	}
 	if cfg.Argon2.MemoryKiB != 64*1024 {
 		t.Fatalf("Argon2.MemoryKiB = %d, want %d", cfg.Argon2.MemoryKiB, 64*1024)
@@ -228,7 +275,11 @@ func clearConfigEnv(t *testing.T) {
 		"ACCESS_TOKEN_TTL",
 		"REFRESH_TOKEN_TTL",
 		"BIZ_TIMEZONE",
-		"SSE_PING_INTERVAL",
+		"REALTIME_HEARTBEAT_INTERVAL",
+		"REALTIME_SESSION_TTL",
+		"WS_WRITE_TIMEOUT",
+		"WS_READ_TIMEOUT",
+		"WS_ALLOWED_ORIGINS",
 		"ARGON2_MEMORY_KIB",
 		"ARGON2_ITERATIONS",
 		"ARGON2_PARALLELISM",
