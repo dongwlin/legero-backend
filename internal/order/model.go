@@ -76,6 +76,8 @@ type OrderFormInput struct {
 	CustomSizePriceCents *int    `json:"customSizePriceCents"`
 	StapleAmountCode     int16   `json:"stapleAmountCode"`
 	ExtraStapleUnits     int16   `json:"extraStapleUnits"`
+	FriedEggCount        int16   `json:"friedEggCount"`
+	TofuSkewerCount      int16   `json:"tofuSkewerCount"`
 	SelectedMeatCodes    []int16 `json:"selectedMeatCodes"`
 	GreensCode           int16   `json:"greensCode"`
 	ScallionCode         int16   `json:"scallionCode"`
@@ -95,6 +97,8 @@ type Order struct {
 	CustomSizePriceCents *int
 	StapleAmountCode     int16
 	ExtraStapleUnits     int16
+	FriedEggCount        int16
+	TofuSkewerCount      int16
 	SelectedMeatCodes    []int16
 	GreensCode           int16
 	ScallionCode         int16
@@ -124,6 +128,8 @@ type OrderModel struct {
 	CustomSizePriceCents *int       `bun:"custom_size_price_cents"`
 	StapleAmountCode     int16      `bun:"staple_amount_code,notnull"`
 	ExtraStapleUnits     int16      `bun:"extra_staple_units,notnull"`
+	FriedEggCount        int16      `bun:"fried_egg_count,notnull"`
+	TofuSkewerCount      int16      `bun:"tofu_skewer_count,notnull"`
 	SelectedMeatCodes    []int16    `bun:"selected_meat_codes,array,type:smallint[],notnull"`
 	GreensCode           int16      `bun:"greens_code,notnull"`
 	ScallionCode         int16      `bun:"scallion_code,notnull"`

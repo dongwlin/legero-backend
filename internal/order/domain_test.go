@@ -11,6 +11,8 @@ func TestNormalizeFormAppliesTakeoutDefaultsAndFiltersKidney(t *testing.T) {
 		SizeCode:            SizeSmall,
 		StapleAmountCode:    AdjustmentNormal,
 		ExtraStapleUnits:    2,
+		FriedEggCount:       1,
+		TofuSkewerCount:     2,
 		SelectedMeatCodes:   []int16{MeatKidney, MeatLeanPork, MeatLiver},
 		GreensCode:          AdjustmentNormal,
 		ScallionCode:        AdjustmentNormal,
@@ -40,6 +42,9 @@ func TestNormalizeFormAppliesTakeoutDefaultsAndFiltersKidney(t *testing.T) {
 	}
 	if normalized.Note != "note" {
 		t.Fatalf("expected note trimming, got %q", normalized.Note)
+	}
+	if normalized.FriedEggCount != 1 || normalized.TofuSkewerCount != 2 {
+		t.Fatalf("expected add-on counts to be preserved, got friedEgg=%d tofuSkewer=%d", normalized.FriedEggCount, normalized.TofuSkewerCount)
 	}
 }
 
@@ -86,12 +91,32 @@ func TestNormalizeFormRejectsEmptyOrder(t *testing.T) {
 	}
 }
 
+func TestNormalizeFormRejectsNegativeAddOnCounts(t *testing.T) {
+	input := OrderFormInput{
+		StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+		SizeCode:          SizeSmall,
+		StapleAmountCode:  AdjustmentNormal,
+		FriedEggCount:     -1,
+		SelectedMeatCodes: []int16{MeatLeanPork},
+		GreensCode:        AdjustmentNormal,
+		ScallionCode:      AdjustmentNormal,
+		PepperCode:        AdjustmentNormal,
+		DiningMethodCode:  DiningMethodDineIn,
+	}
+
+	if _, err := NormalizeForm(input); err == nil {
+		t.Fatal("expected validation error for negative add-on count")
+	}
+}
+
 func TestCalculateTotalPriceCents(t *testing.T) {
 	input := OrderFormInput{
 		StapleTypeCode:      int16Ptr(StapleTypeYiNoodle),
 		SizeCode:            SizeLarge,
 		StapleAmountCode:    AdjustmentNormal,
 		ExtraStapleUnits:    2,
+		FriedEggCount:       1,
+		TofuSkewerCount:     2,
 		SelectedMeatCodes:   []int16{MeatLeanPork},
 		GreensCode:          AdjustmentNormal,
 		ScallionCode:        AdjustmentNormal,
@@ -102,7 +127,7 @@ func TestCalculateTotalPriceCents(t *testing.T) {
 	}
 
 	got := CalculateTotalPriceCents(input)
-	want := yiNoodleLargeBasePriceCents + 2*ExtraStapleUnitPriceCents + PlasticContainerPriceCents
+	want := yiNoodleLargeBasePriceCents + 2*ExtraStapleUnitPriceCents + FriedEggPriceCents + 2*TofuSkewerPriceCents + PlasticContainerPriceCents
 	if got != want {
 		t.Fatalf("CalculateTotalPriceCents() = %d, want %d", got, want)
 	}

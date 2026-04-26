@@ -10,6 +10,12 @@ func NormalizeForm(input OrderFormInput) (OrderFormInput, error) {
 	if input.ExtraStapleUnits < 0 {
 		return OrderFormInput{}, httpx.ValidationError("extraStapleUnits must be greater than or equal to 0")
 	}
+	if input.FriedEggCount < 0 {
+		return OrderFormInput{}, httpx.ValidationError("friedEggCount must be greater than or equal to 0")
+	}
+	if input.TofuSkewerCount < 0 {
+		return OrderFormInput{}, httpx.ValidationError("tofuSkewerCount must be greater than or equal to 0")
+	}
 
 	if input.StapleTypeCode != nil && !containsInt16(allStapleTypeCodes, *input.StapleTypeCode) {
 		return OrderFormInput{}, httpx.ValidationError("stapleTypeCode is invalid")

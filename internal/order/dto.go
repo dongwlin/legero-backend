@@ -10,6 +10,8 @@ type OrderDTO struct {
 	CustomSizePriceCents *int    `json:"customSizePriceCents"`
 	StapleAmountCode     int16   `json:"stapleAmountCode"`
 	ExtraStapleUnits     int16   `json:"extraStapleUnits"`
+	FriedEggCount        int16   `json:"friedEggCount"`
+	TofuSkewerCount      int16   `json:"tofuSkewerCount"`
 	SelectedMeatCodes    []int16 `json:"selectedMeatCodes"`
 	GreensCode           int16   `json:"greensCode"`
 	ScallionCode         int16   `json:"scallionCode"`
@@ -35,6 +37,8 @@ func ToDTO(item Order, location *time.Location) OrderDTO {
 		CustomSizePriceCents: item.CustomSizePriceCents,
 		StapleAmountCode:     item.StapleAmountCode,
 		ExtraStapleUnits:     item.ExtraStapleUnits,
+		FriedEggCount:        item.FriedEggCount,
+		TofuSkewerCount:      item.TofuSkewerCount,
 		SelectedMeatCodes:    cloneInt16s(item.SelectedMeatCodes),
 		GreensCode:           item.GreensCode,
 		ScallionCode:         item.ScallionCode,

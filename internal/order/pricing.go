@@ -2,6 +2,8 @@ package order
 
 const (
 	ExtraStapleUnitPriceCents    = 300
+	FriedEggPriceCents           = 200
+	TofuSkewerPriceCents         = 200
 	PlasticContainerPriceCents   = 50
 	defaultSmallBasePriceCents   = 1000
 	defaultMediumBasePriceCents  = 1200
@@ -62,6 +64,9 @@ func CalculateTotalPriceCents(input OrderFormInput) int {
 	if input.StapleTypeCode != nil && *input.StapleTypeCode == StapleTypeYiNoodle {
 		total += int(input.ExtraStapleUnits) * ExtraStapleUnitPriceCents
 	}
+
+	total += int(input.FriedEggCount) * FriedEggPriceCents
+	total += int(input.TofuSkewerCount) * TofuSkewerPriceCents
 
 	if input.DiningMethodCode == DiningMethodTakeout && input.PackagingCode != nil && *input.PackagingCode == PackagingContainer {
 		total += PlasticContainerPriceCents
