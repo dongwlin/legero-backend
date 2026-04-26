@@ -21,5 +21,6 @@ type DeletedEvent struct {
 }
 
 type ClearedEvent struct {
-	ClearedCount int `json:"clearedCount"`
+	ClearedCount int                `json:"clearedCount"`
+	Mode         ClearWorkspaceMode `json:"mode"`
 }

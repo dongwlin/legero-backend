@@ -279,21 +279,28 @@ func (s *Service) Remove(ctx context.Context, actor Actor, orderID uuid.UUID) er
 	return nil
 }
 
-func (s *Service) ClearWorkspace(ctx context.Context, actor Actor, confirm bool) (int, error) {
+func (s *Service) ClearWorkspace(ctx context.Context, actor Actor, confirm bool, mode ClearWorkspaceMode) (int, error) {
 	if !workspace.CanClear(actor.Role) {
 		return 0, httpx.ForbiddenError("only owner can clear workspace orders")
 	}
 	if !confirm {
 		return 0, httpx.ValidationError("confirm must be true")
 	}
+	if !mode.Valid() {
+		return 0, httpx.ValidationError("mode must be one of all, before_today")
+	}
+
+	resolvedMode := mode.Normalize()
+	var clearBefore *time.Time
+	if resolvedMode == ClearWorkspaceModeBeforeToday {
+		todayStart := businessDate(s.clock.Now(), s.location)
+		clearBefore = &todayStart
+	}
 
 	var cleared int
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		count, err := s.repo.ClearWorkspace(ctx, tx, actor.WorkspaceID)
+		count, err := s.clearWorkspaceInTx(ctx, tx, actor, resolvedMode, clearBefore)
 		if err != nil {
-			return err
-		}
-		if err := s.counters.ResetWorkspace(ctx, tx, actor.WorkspaceID); err != nil {
 			return err
 		}
 		cleared = count
@@ -302,10 +309,32 @@ func (s *Service) ClearWorkspace(ctx context.Context, actor Actor, confirm bool)
 		return 0, httpx.InternalError("failed to clear workspace orders", err)
 	}
 
-	if s.publisher != nil {
-		s.publisher.Publish(actor.WorkspaceID, EventOrderCleared, ClearedEvent{ClearedCount: cleared})
-	}
 	return cleared, nil
+}
+
+func (s *Service) clearWorkspaceInTx(
+	ctx context.Context,
+	db bun.IDB,
+	actor Actor,
+	mode ClearWorkspaceMode,
+	clearBefore *time.Time,
+) (int, error) {
+	count, err := s.repo.ClearWorkspace(ctx, db, actor.WorkspaceID, clearBefore)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.counters.ResetWorkspace(ctx, db, actor.WorkspaceID, clearBefore); err != nil {
+		return 0, err
+	}
+
+	if s.publisher != nil {
+		s.publisher.Publish(actor.WorkspaceID, EventOrderCleared, ClearedEvent{
+			ClearedCount: count,
+			Mode:         mode,
+		})
+	}
+
+	return count, nil
 }
 
 func buildDisplayNo(bizDate time.Time, seq int) string {

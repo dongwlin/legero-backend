@@ -22,12 +22,12 @@ type Repository interface {
 	InsertMany(ctx context.Context, db bun.IDB, items []Order) error
 	Update(ctx context.Context, db bun.IDB, item Order) error
 	Delete(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (bool, error)
-	ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) (int, error)
+	ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error)
 }
 
 type CounterRepository interface {
 	Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error)
-	ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) error
+	ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error
 }
 
 type BunRepository struct{}
@@ -184,11 +184,16 @@ func (r *BunRepository) Delete(ctx context.Context, db bun.IDB, workspaceID, ord
 	return rows > 0, nil
 }
 
-func (r *BunRepository) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) (int, error) {
-	result, err := db.NewDelete().
+func (r *BunRepository) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
+	query := db.NewDelete().
 		Model((*OrderModel)(nil)).
-		Where("workspace_id = ?", workspaceID).
-		Exec(ctx)
+		Where("workspace_id = ?", workspaceID)
+
+	if createdBefore != nil {
+		query = query.Where("created_at < ?", *createdBefore)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("clear workspace orders: %w", err)
 	}
@@ -222,11 +227,16 @@ returning last_seq
 	return lastSeq - quantity + 1, nil
 }
 
-func (r *BunCounterRepository) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) error {
-	if _, err := db.NewDelete().
+func (r *BunCounterRepository) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error {
+	query := db.NewDelete().
 		Table("workspace_daily_counters").
-		Where("workspace_id = ?", workspaceID).
-		Exec(ctx); err != nil {
+		Where("workspace_id = ?", workspaceID)
+
+	if bizDateBefore != nil {
+		query = query.Where("biz_date < ?", bizDateBefore.Format("2006-01-02"))
+	}
+
+	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("reset workspace counter: %w", err)
 	}
 

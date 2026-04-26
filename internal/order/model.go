@@ -178,8 +178,32 @@ type CreateOrdersInput struct {
 	Form     OrderFormInput `json:"form"`
 }
 
+type ClearWorkspaceMode string
+
+const (
+	ClearWorkspaceModeAll         ClearWorkspaceMode = "all"
+	ClearWorkspaceModeBeforeToday ClearWorkspaceMode = "before_today"
+)
+
 type ClearWorkspaceInput struct {
-	Confirm bool `json:"confirm"`
+	Confirm bool               `json:"confirm"`
+	Mode    ClearWorkspaceMode `json:"mode,omitempty"`
+}
+
+func (m ClearWorkspaceMode) Normalize() ClearWorkspaceMode {
+	if m == "" {
+		return ClearWorkspaceModeAll
+	}
+	return m
+}
+
+func (m ClearWorkspaceMode) Valid() bool {
+	switch m.Normalize() {
+	case ClearWorkspaceModeAll, ClearWorkspaceModeBeforeToday:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s ListStatus) Valid() bool {

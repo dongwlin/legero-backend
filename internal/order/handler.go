@@ -210,7 +210,7 @@ func (h *Handler) Clear(c *gin.Context) {
 		return
 	}
 
-	count, err := h.service.ClearWorkspace(c.Request.Context(), actor, input.Confirm)
+	count, err := h.service.ClearWorkspace(c.Request.Context(), actor, input.Confirm, input.Mode)
 	if err != nil {
 		httpx.AbortError(c, err)
 		return
