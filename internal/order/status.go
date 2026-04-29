@@ -3,7 +3,7 @@ package order
 import "time"
 
 func NeedsStapleStep(input OrderFormInput) bool {
-	return input.StapleTypeCode != nil
+	return input.StapleTypeCode != nil && *input.StapleTypeCode != StapleTypeRice
 }
 
 func NeedsMeatStep(input OrderFormInput) bool {
@@ -37,7 +37,7 @@ func CanServe(item Order) bool {
 func ToggleStep(item Order, step string) Order {
 	switch step {
 	case "staple":
-		if item.StapleStepStatusCode == StepStatusUnrequired {
+		if !NeedsStapleStep(orderToFormInput(item)) || item.StapleStepStatusCode == StepStatusUnrequired {
 			return item
 		}
 		if item.StapleStepStatusCode == StepStatusCompleted {

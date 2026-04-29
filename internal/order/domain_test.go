@@ -158,6 +158,73 @@ func TestToggleStepClearsCompletedAtWhenOrderBecomesIncomplete(t *testing.T) {
 	}
 }
 
+func TestInitialStepStatusesTreatRiceAsUnrequired(t *testing.T) {
+	stapleStatus, meatStatus, completedAt := InitialStepStatuses(OrderFormInput{
+		StapleTypeCode:    int16Ptr(StapleTypeRice),
+		SizeCode:          SizeMedium,
+		StapleAmountCode:  AdjustmentNormal,
+		SelectedMeatCodes: []int16{},
+		GreensCode:        AdjustmentNormal,
+		ScallionCode:      AdjustmentNormal,
+		PepperCode:        AdjustmentNormal,
+		DiningMethodCode:  DiningMethodDineIn,
+	})
+
+	if stapleStatus != StepStatusUnrequired {
+		t.Fatalf("expected rice staple step to be unrequired, got %d", stapleStatus)
+	}
+	if meatStatus != StepStatusUnrequired {
+		t.Fatalf("expected meat step to remain unrequired, got %d", meatStatus)
+	}
+	if completedAt != nil {
+		t.Fatal("expected initial completedAt to be nil")
+	}
+}
+
+func TestCanServeIgnoresStaleStapleStatusForRice(t *testing.T) {
+	item := Order{
+		StapleTypeCode:       int16Ptr(StapleTypeRice),
+		SizeCode:             SizeMedium,
+		StapleAmountCode:     AdjustmentNormal,
+		SelectedMeatCodes:    []int16{},
+		GreensCode:           AdjustmentNormal,
+		ScallionCode:         AdjustmentNormal,
+		PepperCode:           AdjustmentNormal,
+		DiningMethodCode:     DiningMethodDineIn,
+		StapleStepStatusCode: StepStatusNotStarted,
+		MeatStepStatusCode:   StepStatusUnrequired,
+	}
+
+	if !CanServe(item) {
+		t.Fatal("expected rice order to be servable without staple confirmation")
+	}
+}
+
+func TestToggleStepDoesNothingForRice(t *testing.T) {
+	completedAt := time.Now()
+	item := Order{
+		StapleTypeCode:       int16Ptr(StapleTypeRice),
+		SizeCode:             SizeMedium,
+		StapleAmountCode:     AdjustmentNormal,
+		SelectedMeatCodes:    []int16{},
+		GreensCode:           AdjustmentNormal,
+		ScallionCode:         AdjustmentNormal,
+		PepperCode:           AdjustmentNormal,
+		DiningMethodCode:     DiningMethodDineIn,
+		StapleStepStatusCode: StepStatusNotStarted,
+		MeatStepStatusCode:   StepStatusUnrequired,
+		CompletedAt:          &completedAt,
+	}
+
+	toggled := ToggleStep(item, "staple")
+	if toggled.StapleStepStatusCode != item.StapleStepStatusCode {
+		t.Fatalf("expected rice staple step toggle to be a no-op, got %d", toggled.StapleStepStatusCode)
+	}
+	if toggled.CompletedAt != item.CompletedAt {
+		t.Fatal("expected completedAt to remain unchanged for rice staple toggle")
+	}
+}
+
 func int16Ptr(value int16) *int16 {
 	return &value
 }
