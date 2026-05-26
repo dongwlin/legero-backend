@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	clockpkg "github.com/dongwlin/legero-backend/internal/infra/clock"
 	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
@@ -35,15 +35,13 @@ type CreateUserResult struct {
 type BootstrapUserService struct {
 	db     *bun.DB
 	hasher *PasswordHasher
-	clock  clockpkg.Clock
 	ids    idspkg.Generator
 }
 
-func NewBootstrapUserService(database *bun.DB, hasher *PasswordHasher, clock clockpkg.Clock, ids idspkg.Generator) *BootstrapUserService {
+func NewBootstrapUserService(database *bun.DB, hasher *PasswordHasher, ids idspkg.Generator) *BootstrapUserService {
 	return &BootstrapUserService{
 		db:     database,
 		hasher: hasher,
-		clock:  clock,
 		ids:    ids,
 	}
 }
@@ -87,7 +85,7 @@ func (s *BootstrapUserService) CreateUser(ctx context.Context, input CreateUserI
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	result := &CreateUserResult{
 		UserID: s.ids.New(),
 		Phone:  normalizedPhone,

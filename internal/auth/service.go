@@ -14,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/order"
-	clockpkg "github.com/dongwlin/legero-backend/internal/infra/clock"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
@@ -32,7 +31,6 @@ type Service struct {
 	workspaces    workspace.Repository
 	orders        ActiveOrderLoader
 	hasher        *PasswordHasher
-	clock         clockpkg.Clock
 	ids           idspkg.Generator
 	location      *time.Location
 	accessTTL     time.Duration
@@ -47,7 +45,6 @@ func NewService(
 	workspaces workspace.Repository,
 	orders ActiveOrderLoader,
 	hasher *PasswordHasher,
-	clock clockpkg.Clock,
 	ids idspkg.Generator,
 	location *time.Location,
 	accessTTL time.Duration,
@@ -66,7 +63,6 @@ func NewService(
 		workspaces:    workspaces,
 		orders:        orders,
 		hasher:        hasher,
-		clock:         clock,
 		ids:           ids,
 		location:      location,
 		accessTTL:     accessTTL,
@@ -110,7 +106,7 @@ func (s *Service) Login(ctx context.Context, phone, password string) (*LoginResu
 		return nil, httpx.InternalError("failed to load active orders", err)
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	tokenPair, refreshRecord, err := s.issueTokenPair(now, user.ID, access)
 	if err != nil {
 		return nil, httpx.InternalError("failed to issue token pair", err)
@@ -147,7 +143,7 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPa
 		return nil, err
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	var pair TokenPair
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -227,7 +223,7 @@ func (s *Service) Bootstrap(ctx context.Context, authCtx *identity.Context) (*Bo
 		},
 		Permissions:  workspace.Permissions(access.Role),
 		ActiveOrders: activeOrders,
-		ServerTime:   s.clock.Now(),
+		ServerTime:   time.Now(),
 	}, nil
 }
 

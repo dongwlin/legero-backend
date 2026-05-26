@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/auth"
-	"github.com/dongwlin/legero-backend/internal/infra/clock"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	dbpkg "github.com/dongwlin/legero-backend/internal/infra/db"
 	"github.com/dongwlin/legero-backend/internal/infra/ids"
@@ -40,10 +39,9 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		return nil, err
 	}
 
-	systemClock := clock.SystemClock{}
 	idGenerator := ids.UUIDGenerator{}
 	realtimeBroker := realtime.NewBroker()
-	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, systemClock.Now)
+	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now)
 	realtimeHandler := realtime.NewHandler(
 		realtimeBroker,
 		realtimeSessions,
@@ -52,7 +50,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		cfg.WSWriteTimeout,
 		cfg.WSReadTimeout,
 		cfg.WSAllowedOrigins,
-		systemClock.Now,
+		time.Now,
 	)
 
 	userRepo := &auth.BunUserRepository{}
@@ -66,7 +64,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		database,
 		orderRepo,
 		counterRepo,
-		systemClock,
 		idGenerator,
 		location,
 		realtimeBroker,
@@ -79,7 +76,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		workspaceRepo,
 		orderService,
 		auth.NewPasswordHasher(cfg.Argon2),
-		systemClock,
 		idGenerator,
 		location,
 		cfg.AccessTokenTTL,

@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	clockpkg "github.com/dongwlin/legero-backend/internal/infra/clock"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
@@ -19,7 +18,6 @@ type Service struct {
 	db        *bun.DB
 	repo      Repository
 	counters  CounterRepository
-	clock     clockpkg.Clock
 	ids       idspkg.Generator
 	location  *time.Location
 	publisher Publisher
@@ -29,7 +27,6 @@ func NewService(
 	database *bun.DB,
 	repo Repository,
 	counters CounterRepository,
-	clock clockpkg.Clock,
 	ids idspkg.Generator,
 	location *time.Location,
 	publisher Publisher,
@@ -38,7 +35,6 @@ func NewService(
 		db:        database,
 		repo:      repo,
 		counters:  counters,
-		clock:     clock,
 		ids:       ids,
 		location:  location,
 		publisher: publisher,
@@ -75,7 +71,7 @@ func (s *Service) CreateBatch(ctx context.Context, actor Actor, input CreateOrde
 		return nil, err
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	bizDate := businessDate(now, s.location)
 	items := make([]Order, 0, input.Quantity)
 
@@ -133,7 +129,7 @@ func (s *Service) UpdateForm(ctx context.Context, actor Actor, orderID uuid.UUID
 		return nil, err
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	var updated Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -192,7 +188,7 @@ func (s *Service) ToggleStep(ctx context.Context, actor Actor, orderID uuid.UUID
 		return nil, httpx.ValidationError("step must be one of staple or meat")
 	}
 
-	now := s.clock.Now()
+	now := time.Now()
 	var updated Order
 	var changed bool
 
@@ -229,7 +225,7 @@ func (s *Service) ToggleStep(ctx context.Context, actor Actor, orderID uuid.UUID
 }
 
 func (s *Service) ToggleServed(ctx context.Context, actor Actor, orderID uuid.UUID, input ToggleServedInput) (*Order, error) {
-	now := s.clock.Now()
+	now := time.Now()
 	var updated Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -293,7 +289,7 @@ func (s *Service) ClearWorkspace(ctx context.Context, actor Actor, confirm bool,
 	resolvedMode := mode.Normalize()
 	var clearBefore *time.Time
 	if resolvedMode == ClearWorkspaceModeBeforeToday {
-		todayStart := businessDate(s.clock.Now(), s.location)
+		todayStart := businessDate(time.Now(), s.location)
 		clearBefore = &todayStart
 	}
 
