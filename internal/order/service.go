@@ -15,16 +15,16 @@ import (
 
 type Service struct {
 	db        *bun.DB
-	repo      Repository
-	counters  CounterRepository
+	repo      *OrderRepo
+	counters  *CounterRepo
 	location  *time.Location
 	publisher Publisher
 }
 
 func NewService(
 	database *bun.DB,
-	repo Repository,
-	counters CounterRepository,
+	repo *OrderRepo,
+	counters *CounterRepo,
 	location *time.Location,
 	publisher Publisher,
 ) *Service {

@@ -54,8 +54,8 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 	userRepo := &auth.BunUserRepository{}
 	refreshRepo := &auth.BunRefreshTokenRepository{}
 	workspaceRepo := &workspace.BunRepository{}
-	orderRepo := &order.BunRepository{}
-	counterRepo := &order.BunCounterRepository{}
+	orderRepo := &order.OrderRepo{}
+	counterRepo := &order.CounterRepo{}
 	statsRepo := &stats.BunRepository{}
 
 	orderService := order.NewService(

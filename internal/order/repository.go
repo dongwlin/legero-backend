@@ -15,24 +15,9 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 )
 
-type Repository interface {
-	List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, query ListOrdersQuery) ([]Order, *string, error)
-	ListActive(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) ([]Order, error)
-	GetByID(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (*Order, error)
-	InsertMany(ctx context.Context, db bun.IDB, items []Order) error
-	Update(ctx context.Context, db bun.IDB, item Order) error
-	Delete(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (bool, error)
-	ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error)
-}
+type OrderRepo struct{}
 
-type CounterRepository interface {
-	Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error)
-	ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error
-}
-
-type BunRepository struct{}
-
-type BunCounterRepository struct{}
+type CounterRepo struct{}
 
 type listCursor struct {
 	Status      ListStatus `json:"status"`
@@ -41,7 +26,7 @@ type listCursor struct {
 	ID          uuid.UUID  `json:"id"`
 }
 
-func (r *BunRepository) List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, query ListOrdersQuery) ([]Order, *string, error) {
+func (r *OrderRepo) List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, query ListOrdersQuery) ([]Order, *string, error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 50
@@ -107,7 +92,7 @@ func (r *BunRepository) List(ctx context.Context, db bun.IDB, workspaceID uuid.U
 	return mapOrders(models), nextCursor, nil
 }
 
-func (r *BunRepository) ListActive(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) ([]Order, error) {
+func (r *OrderRepo) ListActive(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) ([]Order, error) {
 	var models []OrderModel
 	if err := db.NewSelect().
 		Model(&models).
@@ -120,7 +105,7 @@ func (r *BunRepository) ListActive(ctx context.Context, db bun.IDB, workspaceID 
 	return mapOrders(models), nil
 }
 
-func (r *BunRepository) GetByID(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (*Order, error) {
+func (r *OrderRepo) GetByID(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (*Order, error) {
 	model := new(OrderModel)
 	err := db.NewSelect().
 		Model(model).
@@ -138,7 +123,7 @@ func (r *BunRepository) GetByID(ctx context.Context, db bun.IDB, workspaceID, or
 	return &item, nil
 }
 
-func (r *BunRepository) InsertMany(ctx context.Context, db bun.IDB, items []Order) error {
+func (r *OrderRepo) InsertMany(ctx context.Context, db bun.IDB, items []Order) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -154,7 +139,7 @@ func (r *BunRepository) InsertMany(ctx context.Context, db bun.IDB, items []Orde
 	return nil
 }
 
-func (r *BunRepository) Update(ctx context.Context, db bun.IDB, item Order) error {
+func (r *OrderRepo) Update(ctx context.Context, db bun.IDB, item Order) error {
 	model := orderToModel(item)
 	result, err := db.NewUpdate().
 		Model(&model).
@@ -171,7 +156,7 @@ func (r *BunRepository) Update(ctx context.Context, db bun.IDB, item Order) erro
 	return nil
 }
 
-func (r *BunRepository) Delete(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (bool, error) {
+func (r *OrderRepo) Delete(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (bool, error) {
 	result, err := db.NewDelete().
 		Model((*OrderModel)(nil)).
 		Where("workspace_id = ?", workspaceID).
@@ -184,7 +169,7 @@ func (r *BunRepository) Delete(ctx context.Context, db bun.IDB, workspaceID, ord
 	return rows > 0, nil
 }
 
-func (r *BunRepository) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
+func (r *OrderRepo) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
 	query := db.NewDelete().
 		Model((*OrderModel)(nil)).
 		Where("workspace_id = ?", workspaceID)
@@ -201,7 +186,7 @@ func (r *BunRepository) ClearWorkspace(ctx context.Context, db bun.IDB, workspac
 	return int(rows), nil
 }
 
-func (r *BunCounterRepository) Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error) {
+func (r *CounterRepo) Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error) {
 	if quantity <= 0 {
 		return 0, fmt.Errorf("quantity must be greater than 0")
 	}
@@ -227,7 +212,7 @@ returning last_seq
 	return lastSeq - quantity + 1, nil
 }
 
-func (r *BunCounterRepository) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error {
+func (r *CounterRepo) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error {
 	query := db.NewDelete().
 		Table("workspace_daily_counters").
 		Where("workspace_id = ?", workspaceID)
