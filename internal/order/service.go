@@ -15,30 +15,25 @@ import (
 
 type Service struct {
 	db        *bun.DB
-	repo      *OrderRepo
-	counters  *CounterRepo
 	location  *time.Location
 	publisher Publisher
 }
 
 func NewService(
 	database *bun.DB,
-	repo *OrderRepo,
-	counters *CounterRepo,
 	location *time.Location,
 	publisher Publisher,
 ) *Service {
 	return &Service{
 		db:        database,
-		repo:      repo,
-		counters:  counters,
 		location:  location,
 		publisher: publisher,
 	}
 }
 
 func (s *Service) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]Order, error) {
-	return s.repo.ListActive(ctx, s.db, workspaceID)
+	orderRepo := NewOrderRepo(s.db)
+	return orderRepo.ListActive(ctx, workspaceID)
 }
 
 func (s *Service) List(ctx context.Context, actor Actor, query ListOrdersQuery) (*ListOrdersResult, error) {
@@ -46,7 +41,8 @@ func (s *Service) List(ctx context.Context, actor Actor, query ListOrdersQuery) 
 		return nil, httpx.ValidationError("status must be one of uncompleted, completed, all")
 	}
 
-	items, nextCursor, err := s.repo.List(ctx, s.db, actor.WorkspaceID, query)
+	orderRepo := NewOrderRepo(s.db)
+	items, nextCursor, err := orderRepo.List(ctx, actor.WorkspaceID, query)
 	if err != nil {
 		return nil, httpx.InternalError("failed to list orders", err)
 	}
@@ -72,7 +68,8 @@ func (s *Service) CreateBatch(ctx context.Context, actor Actor, input CreateOrde
 	items := make([]Order, 0, input.Quantity)
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		startSeq, err := s.counters.Allocate(ctx, tx, actor.WorkspaceID, bizDate, input.Quantity, now)
+		counterRepo := NewCounterRepo(tx)
+		startSeq, err := counterRepo.Allocate(ctx, actor.WorkspaceID, bizDate, input.Quantity, now)
 		if err != nil {
 			return err
 		}
@@ -110,7 +107,8 @@ func (s *Service) CreateBatch(ctx context.Context, actor Actor, input CreateOrde
 			items = append(items, item)
 		}
 
-		return s.repo.InsertMany(ctx, tx, items)
+		orderRepo := NewOrderRepo(tx)
+		return orderRepo.InsertMany(ctx, items)
 	}); err != nil {
 		return nil, httpx.InternalError("failed to create orders", err)
 	}
@@ -129,7 +127,8 @@ func (s *Service) UpdateForm(ctx context.Context, actor Actor, orderID uuid.UUID
 	var updated Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		current, err := s.repo.GetByID(ctx, tx, actor.WorkspaceID, orderID)
+		orderRepo := NewOrderRepo(tx)
+		current, err := orderRepo.GetByID(ctx, actor.WorkspaceID, orderID)
 		if err != nil {
 			return err
 		}
@@ -170,7 +169,7 @@ func (s *Service) UpdateForm(ctx context.Context, actor Actor, orderID uuid.UUID
 			CompletedAt:          completedAt,
 		}
 
-		return s.repo.Update(ctx, tx, updated)
+		return orderRepo.Update(ctx, updated)
 	}); err != nil {
 		return nil, wrapOrderServiceError("failed to update order", err)
 	}
@@ -189,7 +188,8 @@ func (s *Service) ToggleStep(ctx context.Context, actor Actor, orderID uuid.UUID
 	var changed bool
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		current, err := s.repo.GetByID(ctx, tx, actor.WorkspaceID, orderID)
+		orderRepo := NewOrderRepo(tx)
+		current, err := orderRepo.GetByID(ctx, actor.WorkspaceID, orderID)
 		if err != nil {
 			return err
 		}
@@ -209,7 +209,7 @@ func (s *Service) ToggleStep(ctx context.Context, actor Actor, orderID uuid.UUID
 		changed = true
 		updated.UpdatedBy = actor.UserID
 		updated.UpdatedAt = now
-		return s.repo.Update(ctx, tx, updated)
+		return orderRepo.Update(ctx, updated)
 	}); err != nil {
 		return nil, wrapOrderServiceError("failed to toggle order step", err)
 	}
@@ -225,7 +225,8 @@ func (s *Service) ToggleServed(ctx context.Context, actor Actor, orderID uuid.UU
 	var updated Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		current, err := s.repo.GetByID(ctx, tx, actor.WorkspaceID, orderID)
+		orderRepo := NewOrderRepo(tx)
+		current, err := orderRepo.GetByID(ctx, actor.WorkspaceID, orderID)
 		if err != nil {
 			return err
 		}
@@ -242,7 +243,7 @@ func (s *Service) ToggleServed(ctx context.Context, actor Actor, orderID uuid.UU
 		updated = ToggleServed(*current, now)
 		updated.UpdatedBy = actor.UserID
 		updated.UpdatedAt = now
-		return s.repo.Update(ctx, tx, updated)
+		return orderRepo.Update(ctx, updated)
 	}); err != nil {
 		return nil, wrapOrderServiceError("failed to toggle served status", err)
 	}
@@ -253,7 +254,8 @@ func (s *Service) ToggleServed(ctx context.Context, actor Actor, orderID uuid.UU
 
 func (s *Service) Remove(ctx context.Context, actor Actor, orderID uuid.UUID) error {
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		removed, err := s.repo.Delete(ctx, tx, actor.WorkspaceID, orderID)
+		orderRepo := NewOrderRepo(tx)
+		removed, err := orderRepo.Delete(ctx, actor.WorkspaceID, orderID)
 		if err != nil {
 			return err
 		}
@@ -311,11 +313,13 @@ func (s *Service) clearWorkspaceInTx(
 	mode ClearWorkspaceMode,
 	clearBefore *time.Time,
 ) (int, error) {
-	count, err := s.repo.ClearWorkspace(ctx, db, actor.WorkspaceID, clearBefore)
+	orderRepo := NewOrderRepo(db)
+	count, err := orderRepo.ClearWorkspace(ctx, actor.WorkspaceID, clearBefore)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.counters.ResetWorkspace(ctx, db, actor.WorkspaceID, clearBefore); err != nil {
+	counterRepo := NewCounterRepo(db)
+	if err := counterRepo.ResetWorkspace(ctx, actor.WorkspaceID, clearBefore); err != nil {
 		return 0, err
 	}
 

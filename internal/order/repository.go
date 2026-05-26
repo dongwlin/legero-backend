@@ -15,9 +15,21 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 )
 
-type OrderRepo struct{}
+type OrderRepo struct {
+	db bun.IDB
+}
 
-type CounterRepo struct{}
+func NewOrderRepo(db bun.IDB) *OrderRepo {
+	return &OrderRepo{db: db}
+}
+
+type CounterRepo struct {
+	db bun.IDB
+}
+
+func NewCounterRepo(db bun.IDB) *CounterRepo {
+	return &CounterRepo{db: db}
+}
 
 type listCursor struct {
 	Status      ListStatus `json:"status"`
@@ -26,7 +38,7 @@ type listCursor struct {
 	ID          uuid.UUID  `json:"id"`
 }
 
-func (r *OrderRepo) List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, query ListOrdersQuery) ([]Order, *string, error) {
+func (r *OrderRepo) List(ctx context.Context, workspaceID uuid.UUID, query ListOrdersQuery) ([]Order, *string, error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 50
@@ -41,7 +53,7 @@ func (r *OrderRepo) List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID,
 	}
 
 	models := make([]OrderModel, 0, limit+1)
-	selectQuery := db.NewSelect().
+	selectQuery := r.db.NewSelect().
 		Model(&models).
 		Where("workspace_id = ?", workspaceID)
 
@@ -92,9 +104,9 @@ func (r *OrderRepo) List(ctx context.Context, db bun.IDB, workspaceID uuid.UUID,
 	return mapOrders(models), nextCursor, nil
 }
 
-func (r *OrderRepo) ListActive(ctx context.Context, db bun.IDB, workspaceID uuid.UUID) ([]Order, error) {
+func (r *OrderRepo) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]Order, error) {
 	var models []OrderModel
-	if err := db.NewSelect().
+	if err := r.db.NewSelect().
 		Model(&models).
 		Where("workspace_id = ?", workspaceID).
 		Where("completed_at IS NULL").
@@ -105,9 +117,9 @@ func (r *OrderRepo) ListActive(ctx context.Context, db bun.IDB, workspaceID uuid
 	return mapOrders(models), nil
 }
 
-func (r *OrderRepo) GetByID(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (*Order, error) {
+func (r *OrderRepo) GetByID(ctx context.Context, workspaceID, orderID uuid.UUID) (*Order, error) {
 	model := new(OrderModel)
-	err := db.NewSelect().
+	err := r.db.NewSelect().
 		Model(model).
 		Where("workspace_id = ?", workspaceID).
 		Where("id = ?", orderID).
@@ -123,7 +135,7 @@ func (r *OrderRepo) GetByID(ctx context.Context, db bun.IDB, workspaceID, orderI
 	return &item, nil
 }
 
-func (r *OrderRepo) InsertMany(ctx context.Context, db bun.IDB, items []Order) error {
+func (r *OrderRepo) InsertMany(ctx context.Context, items []Order) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -133,15 +145,15 @@ func (r *OrderRepo) InsertMany(ctx context.Context, db bun.IDB, items []Order) e
 		models = append(models, orderToModel(item))
 	}
 
-	if _, err := db.NewInsert().Model(&models).Exec(ctx); err != nil {
+	if _, err := r.db.NewInsert().Model(&models).Exec(ctx); err != nil {
 		return fmt.Errorf("insert orders: %w", err)
 	}
 	return nil
 }
 
-func (r *OrderRepo) Update(ctx context.Context, db bun.IDB, item Order) error {
+func (r *OrderRepo) Update(ctx context.Context, item Order) error {
 	model := orderToModel(item)
-	result, err := db.NewUpdate().
+	result, err := r.db.NewUpdate().
 		Model(&model).
 		WherePK().
 		Where("workspace_id = ?", item.WorkspaceID).
@@ -156,8 +168,8 @@ func (r *OrderRepo) Update(ctx context.Context, db bun.IDB, item Order) error {
 	return nil
 }
 
-func (r *OrderRepo) Delete(ctx context.Context, db bun.IDB, workspaceID, orderID uuid.UUID) (bool, error) {
-	result, err := db.NewDelete().
+func (r *OrderRepo) Delete(ctx context.Context, workspaceID, orderID uuid.UUID) (bool, error) {
+	result, err := r.db.NewDelete().
 		Model((*OrderModel)(nil)).
 		Where("workspace_id = ?", workspaceID).
 		Where("id = ?", orderID).
@@ -169,8 +181,8 @@ func (r *OrderRepo) Delete(ctx context.Context, db bun.IDB, workspaceID, orderID
 	return rows > 0, nil
 }
 
-func (r *OrderRepo) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
-	query := db.NewDelete().
+func (r *OrderRepo) ClearWorkspace(ctx context.Context, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
+	query := r.db.NewDelete().
 		Model((*OrderModel)(nil)).
 		Where("workspace_id = ?", workspaceID)
 
@@ -186,12 +198,12 @@ func (r *OrderRepo) ClearWorkspace(ctx context.Context, db bun.IDB, workspaceID 
 	return int(rows), nil
 }
 
-func (r *CounterRepo) Allocate(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error) {
+func (r *CounterRepo) Allocate(ctx context.Context, workspaceID uuid.UUID, bizDate time.Time, quantity int, now time.Time) (int, error) {
 	if quantity <= 0 {
 		return 0, fmt.Errorf("quantity must be greater than 0")
 	}
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := r.db.ExecContext(ctx, `
 insert into workspace_daily_counters (workspace_id, biz_date, last_seq, updated_at)
 values (?, ?, 0, ?)
 on conflict (workspace_id, biz_date) do nothing
@@ -200,7 +212,7 @@ on conflict (workspace_id, biz_date) do nothing
 	}
 
 	var lastSeq int
-	if err := db.NewRaw(`
+	if err := r.db.NewRaw(`
 update workspace_daily_counters
 set last_seq = last_seq + ?, updated_at = ?
 where workspace_id = ? and biz_date = ?
@@ -212,8 +224,8 @@ returning last_seq
 	return lastSeq - quantity + 1, nil
 }
 
-func (r *CounterRepo) ResetWorkspace(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, bizDateBefore *time.Time) error {
-	query := db.NewDelete().
+func (r *CounterRepo) ResetWorkspace(ctx context.Context, workspaceID uuid.UUID, bizDateBefore *time.Time) error {
+	query := r.db.NewDelete().
 		Table("workspace_daily_counters").
 		Where("workspace_id = ?", workspaceID)
 
