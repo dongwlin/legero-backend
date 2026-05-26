@@ -16,7 +16,6 @@ import (
 	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -31,7 +30,6 @@ type Service struct {
 	workspaces    workspace.Repository
 	orders        ActiveOrderLoader
 	hasher        *PasswordHasher
-	ids           idspkg.Generator
 	location      *time.Location
 	accessTTL     time.Duration
 	refreshTTL    time.Duration
@@ -45,7 +43,6 @@ func NewService(
 	workspaces workspace.Repository,
 	orders ActiveOrderLoader,
 	hasher *PasswordHasher,
-	ids idspkg.Generator,
 	location *time.Location,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
@@ -63,7 +60,6 @@ func NewService(
 		workspaces:    workspaces,
 		orders:        orders,
 		hasher:        hasher,
-		ids:           ids,
 		location:      location,
 		accessTTL:     accessTTL,
 		refreshTTL:    refreshTTL,
@@ -243,14 +239,14 @@ func (s *Service) RequireAccessToken(_ context.Context, rawToken string) (*ident
 func (s *Service) issueTokenPair(now time.Time, userID uuid.UUID, access *workspace.Access) (TokenPair, RefreshToken, error) {
 	accessExpiresAt := now.Add(s.accessTTL)
 	refreshExpiresAt := now.Add(s.refreshTTL)
-	refreshID := s.ids.New()
+	refreshID := uuid.New()
 
 	accessToken, err := s.encryptToken(TokenClaims{
 		UserID:      userID,
 		WorkspaceID: access.WorkspaceID,
 		Role:        access.Role,
 		Type:        "access",
-		JTI:         s.ids.New().String(),
+		JTI:         uuid.New().String(),
 		ExpiresAt:   accessExpiresAt,
 	}, now)
 	if err != nil {

@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -35,14 +34,12 @@ type CreateUserResult struct {
 type BootstrapUserService struct {
 	db     *bun.DB
 	hasher *PasswordHasher
-	ids    idspkg.Generator
 }
 
-func NewBootstrapUserService(database *bun.DB, hasher *PasswordHasher, ids idspkg.Generator) *BootstrapUserService {
+func NewBootstrapUserService(database *bun.DB, hasher *PasswordHasher) *BootstrapUserService {
 	return &BootstrapUserService{
 		db:     database,
 		hasher: hasher,
-		ids:    ids,
 	}
 }
 
@@ -87,14 +84,14 @@ func (s *BootstrapUserService) CreateUser(ctx context.Context, input CreateUserI
 
 	now := time.Now()
 	result := &CreateUserResult{
-		UserID: s.ids.New(),
+		UserID: uuid.New(),
 		Phone:  normalizedPhone,
 		Role:   input.Role,
 	}
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if input.WorkspaceID == nil {
-			result.WorkspaceID = s.ids.New()
+			result.WorkspaceID = uuid.New()
 			result.WorkspaceName = input.Workspace
 			result.CreatedWorkspace = true
 

@@ -13,7 +13,6 @@ import (
 	"github.com/dongwlin/legero-backend/internal/auth"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	dbpkg "github.com/dongwlin/legero-backend/internal/infra/db"
-	"github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/stats"
@@ -39,7 +38,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		return nil, err
 	}
 
-	idGenerator := ids.UUIDGenerator{}
 	realtimeBroker := realtime.NewBroker()
 	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now)
 	realtimeHandler := realtime.NewHandler(
@@ -64,7 +62,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		database,
 		orderRepo,
 		counterRepo,
-		idGenerator,
 		location,
 		realtimeBroker,
 	)
@@ -76,7 +73,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		workspaceRepo,
 		orderService,
 		auth.NewPasswordHasher(cfg.Argon2),
-		idGenerator,
 		location,
 		cfg.AccessTokenTTL,
 		cfg.RefreshTokenTTL,

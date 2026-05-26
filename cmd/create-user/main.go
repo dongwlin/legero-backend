@@ -14,7 +14,6 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/cli"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	dbpkg "github.com/dongwlin/legero-backend/internal/infra/db"
-	"github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -59,7 +58,6 @@ func run(ctx context.Context, cfg *config.Config, _ zerolog.Logger, args []strin
 	service := auth.NewBootstrapUserService(
 		database,
 		auth.NewPasswordHasher(cfg.Argon2),
-		ids.UUIDGenerator{},
 	)
 
 	result, err := service.CreateUser(ctx, auth.CreateUserInput{

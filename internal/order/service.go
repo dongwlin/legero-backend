@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
-	idspkg "github.com/dongwlin/legero-backend/internal/infra/ids"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -18,7 +17,6 @@ type Service struct {
 	db        *bun.DB
 	repo      Repository
 	counters  CounterRepository
-	ids       idspkg.Generator
 	location  *time.Location
 	publisher Publisher
 }
@@ -27,7 +25,6 @@ func NewService(
 	database *bun.DB,
 	repo Repository,
 	counters CounterRepository,
-	ids idspkg.Generator,
 	location *time.Location,
 	publisher Publisher,
 ) *Service {
@@ -35,7 +32,6 @@ func NewService(
 		db:        database,
 		repo:      repo,
 		counters:  counters,
-		ids:       ids,
 		location:  location,
 		publisher: publisher,
 	}
@@ -84,7 +80,7 @@ func (s *Service) CreateBatch(ctx context.Context, actor Actor, input CreateOrde
 		for idx := 0; idx < input.Quantity; idx++ {
 			stapleStatus, meatStatus, completedAt := InitialStepStatuses(form)
 			item := Order{
-				ID:                   s.ids.New(),
+				ID:                   uuid.New(),
 				WorkspaceID:          actor.WorkspaceID,
 				DisplayNo:            buildDisplayNo(bizDate, startSeq+idx),
 				StapleTypeCode:       form.StapleTypeCode,
