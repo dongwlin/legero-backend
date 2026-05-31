@@ -2,7 +2,7 @@ $env:CGO_ENABLED = 0
 $env:GOOS = "android"
 $env:GOARCH = "arm64"
 
-$targets = @("server", "migrate", "create-user")
+$targets = @("server", "create-user")
 $outputDir = Join-Path -Path $PWD.Path -ChildPath "bin/android"
 
 if (-not (Test-Path $outputDir)) {

@@ -1,14 +1,3 @@
-package db
-
-import (
-	"context"
-
-	"github.com/uptrace/bun"
-)
-
-func init() {
-	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
-		_, err := db.ExecContext(ctx, `
 create table if not exists users (
   id uuid primary key,
   phone text not null unique,
@@ -72,6 +61,8 @@ create table if not exists orders (
   custom_size_price_cents integer,
   staple_amount_code smallint not null,
   extra_staple_units smallint not null default 0,
+  fried_egg_count smallint not null default 0,
+  tofu_skewer_count smallint not null default 0,
 
   selected_meat_codes smallint[] not null default '{}',
 
@@ -108,17 +99,3 @@ where completed_at is null;
 
 create unique index if not exists orders_workspace_display_no_idx
 on orders(workspace_id, display_no);
-`)
-		return err
-	}, func(ctx context.Context, db *bun.DB) error {
-		_, err := db.ExecContext(ctx, `
-drop table if exists orders;
-drop table if exists workspace_daily_counters;
-drop table if exists refresh_tokens;
-drop table if exists workspace_members;
-drop table if exists workspaces;
-drop table if exists users;
-`)
-		return err
-	})
-}

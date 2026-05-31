@@ -17,6 +17,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/stats"
 	"github.com/dongwlin/legero-backend/internal/workspace"
+	"github.com/dongwlin/legero-backend/migrations"
 )
 
 type Application struct {
@@ -31,6 +32,10 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 	location, err := time.LoadLocation(cfg.BizTimezone)
 	if err != nil {
 		return nil, fmt.Errorf("load biz timezone: %w", err)
+	}
+
+	if err := migrations.Migrate(cfg.DatabaseURL); err != nil {
+		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
 	database, err := dbpkg.Open(ctx, cfg.DatabaseURL)
