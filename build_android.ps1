@@ -20,11 +20,14 @@ foreach ($target in $targets) {
     }
 
     Write-Host "Building $target for Android..."
+    $startTime = Get-Date
     go build -trimpath --ldflags='-s -w' -o $outputPath $sourcePath
+    $endTime = Get-Date
+    $duration = $endTime - $startTime
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "Successfully built $target for Android" -ForegroundColor Green
+        Write-Host "Successfully built $target for Android ($([math]::Round($duration.TotalSeconds, 2))s)" -ForegroundColor Green
     } else {
-        Write-Host "Failed to build $target for Android" -ForegroundColor Red
+        Write-Host "Failed to build $target for Android ($([math]::Round($duration.TotalSeconds, 2))s)" -ForegroundColor Red
     }
 }
