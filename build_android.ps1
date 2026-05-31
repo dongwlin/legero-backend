@@ -20,7 +20,7 @@ foreach ($target in $targets) {
     }
 
     Write-Host "Building $target for Android..."
-    go build -o $outputPath $sourcePath
+    go build -trimpath --ldflags='-s -w' -o $outputPath $sourcePath
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Successfully built $target for Android" -ForegroundColor Green
