@@ -24,8 +24,8 @@ const (
 
 var createUserCmd = &cobra.Command{
 	Use:   "create-user",
-	Short: "Create a bootstrap admin user",
-	Long:  "Create a bootstrap admin user with optional workspace assignment.",
+	Short: "Create a user with workspace membership",
+	Long:  "Create a new user with phone and password, optionally creating a new workspace or attaching to an existing one.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runCreateUser(cmd)
 	},
