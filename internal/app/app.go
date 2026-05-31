@@ -12,7 +12,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/auth"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
-	dbpkg "github.com/dongwlin/legero-backend/internal/infra/db"
+	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/stats"
@@ -38,7 +38,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
-	database, err := dbpkg.Open(ctx, cfg.DatabaseURL)
+	db, err := database.New(ctx, database.Options{DSN: cfg.DatabaseURL})
 	if err != nil {
 		return nil, err
 	}
@@ -62,13 +62,13 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 	statsRepo := &stats.BunRepository{}
 
 	orderService := order.NewService(
-		database,
+		db,
 		location,
 		realtimeBroker,
 	)
 
 	authService, err := auth.NewService(
-		database,
+		db,
 		userRepo,
 		refreshRepo,
 		workspaceRepo,
@@ -80,11 +80,11 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		cfg.PasetoSymmetricKey,
 	)
 	if err != nil {
-		_ = database.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
-	statsService := stats.NewService(database, statsRepo, cfg.BizTimezone)
+	statsService := stats.NewService(db, statsRepo, cfg.BizTimezone)
 
 	authHandler := auth.NewHandler(authService, location)
 	orderHandler := order.NewHandler(orderService, location)
@@ -108,7 +108,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 	return &Application{
 		Config:   cfg,
 		Location: location,
-		DB:       database,
+		DB:       db,
 		Router:   router,
 		Server:   server,
 	}, nil

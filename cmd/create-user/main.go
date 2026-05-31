@@ -13,7 +13,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/auth"
 	"github.com/dongwlin/legero-backend/internal/infra/cli"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
-	dbpkg "github.com/dongwlin/legero-backend/internal/infra/db"
+	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -47,16 +47,16 @@ func run(ctx context.Context, cfg *config.Config, _ zerolog.Logger, args []strin
 		workspaceID = &parsed
 	}
 
-	database, err := dbpkg.Open(ctx, cfg.DatabaseURL)
+	db, err := database.New(ctx, database.Options{DSN: cfg.DatabaseURL})
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = database.Close()
+		_ = db.Close()
 	}()
 
 	service := auth.NewBootstrapUserService(
-		database,
+		db,
 		auth.NewPasswordHasher(cfg.Argon2),
 	)
 
