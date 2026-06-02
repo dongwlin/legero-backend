@@ -34,7 +34,7 @@ type Service struct {
 }
 
 func NewService(
-	database *bun.DB,
+	db *bun.DB,
 	orders ActiveOrderLoader,
 	hasher *PasswordHasher,
 	location *time.Location,
@@ -48,7 +48,7 @@ func NewService(
 	}
 
 	return &Service{
-		db:         database,
+		db:         db,
 		orders:     orders,
 		hasher:     hasher,
 		location:   location,

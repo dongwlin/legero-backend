@@ -21,9 +21,9 @@ type Service struct {
 	timezone string
 }
 
-func NewService(database *bun.DB, timezone string) *Service {
+func NewService(db *bun.DB, timezone string) *Service {
 	return &Service{
-		db:       database,
+		db:       db,
 		timezone: timezone,
 	}
 }
