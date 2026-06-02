@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	paseto "aidanwoods.dev/go-paseto"
+	"aidanwoods.dev/go-paseto"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
