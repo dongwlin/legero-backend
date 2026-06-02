@@ -11,24 +11,25 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type UserRepository interface {
-	GetByPhone(ctx context.Context, db bun.IDB, phone string) (*User, error)
-	GetByID(ctx context.Context, db bun.IDB, userID uuid.UUID) (*User, error)
+type UserRepo struct {
+	db bun.IDB
 }
 
-type RefreshTokenRepository interface {
-	Insert(ctx context.Context, db bun.IDB, token RefreshToken) error
-	GetByHash(ctx context.Context, db bun.IDB, tokenHash string, forUpdate bool) (*RefreshToken, error)
-	Rotate(ctx context.Context, db bun.IDB, tokenID, replacementID uuid.UUID, rotatedAt time.Time) error
+func NewUserRepo(db bun.IDB) *UserRepo {
+	return &UserRepo{db: db}
 }
 
-type BunUserRepository struct{}
+type RefreshTokenRepo struct {
+	db bun.IDB
+}
 
-type BunRefreshTokenRepository struct{}
+func NewRefreshTokenRepo(db bun.IDB) *RefreshTokenRepo {
+	return &RefreshTokenRepo{db: db}
+}
 
-func (r *BunUserRepository) GetByPhone(ctx context.Context, db bun.IDB, phone string) (*User, error) {
+func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*User, error) {
 	model := new(UserModel)
-	err := db.NewSelect().
+	err := r.db.NewSelect().
 		Model(model).
 		Where("phone = ?", phone).
 		Limit(1).
@@ -49,9 +50,9 @@ func (r *BunUserRepository) GetByPhone(ctx context.Context, db bun.IDB, phone st
 	}, nil
 }
 
-func (r *BunUserRepository) GetByID(ctx context.Context, db bun.IDB, userID uuid.UUID) (*User, error) {
+func (r *UserRepo) GetByID(ctx context.Context, userID uuid.UUID) (*User, error) {
 	model := new(UserModel)
-	err := db.NewSelect().
+	err := r.db.NewSelect().
 		Model(model).
 		Where("id = ?", userID).
 		Limit(1).
@@ -72,7 +73,7 @@ func (r *BunUserRepository) GetByID(ctx context.Context, db bun.IDB, userID uuid
 	}, nil
 }
 
-func (r *BunRefreshTokenRepository) Insert(ctx context.Context, db bun.IDB, token RefreshToken) error {
+func (r *RefreshTokenRepo) Insert(ctx context.Context, token RefreshToken) error {
 	model := RefreshTokenModel{
 		ID:           token.ID,
 		UserID:       token.UserID,
@@ -84,15 +85,15 @@ func (r *BunRefreshTokenRepository) Insert(ctx context.Context, db bun.IDB, toke
 		RevokedAt:    token.RevokedAt,
 		ReplacedByID: token.ReplacedByID,
 	}
-	if _, err := db.NewInsert().Model(&model).Exec(ctx); err != nil {
+	if _, err := r.db.NewInsert().Model(&model).Exec(ctx); err != nil {
 		return fmt.Errorf("insert refresh token: %w", err)
 	}
 	return nil
 }
 
-func (r *BunRefreshTokenRepository) GetByHash(ctx context.Context, db bun.IDB, tokenHash string, forUpdate bool) (*RefreshToken, error) {
+func (r *RefreshTokenRepo) GetByHash(ctx context.Context, tokenHash string, forUpdate bool) (*RefreshToken, error) {
 	model := new(RefreshTokenModel)
-	query := db.NewSelect().
+	query := r.db.NewSelect().
 		Model(model).
 		Where("token_hash = ?", tokenHash).
 		Limit(1)
@@ -120,8 +121,8 @@ func (r *BunRefreshTokenRepository) GetByHash(ctx context.Context, db bun.IDB, t
 	}, nil
 }
 
-func (r *BunRefreshTokenRepository) Rotate(ctx context.Context, db bun.IDB, tokenID, replacementID uuid.UUID, rotatedAt time.Time) error {
-	result, err := db.NewUpdate().
+func (r *RefreshTokenRepo) Rotate(ctx context.Context, tokenID, replacementID uuid.UUID, rotatedAt time.Time) error {
+	result, err := r.db.NewUpdate().
 		Model((*RefreshTokenModel)(nil)).
 		Set("rotated_at = ?", rotatedAt).
 		Set("replaced_by_id = ?", replacementID).

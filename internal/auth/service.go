@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
+	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/workspace"
 )
 
@@ -24,23 +24,17 @@ type ActiveOrderLoader interface {
 }
 
 type Service struct {
-	db            *bun.DB
-	users         UserRepository
-	refreshTokens RefreshTokenRepository
-	workspaces    workspace.Repository
-	orders        ActiveOrderLoader
-	hasher        *PasswordHasher
-	location      *time.Location
-	accessTTL     time.Duration
-	refreshTTL    time.Duration
-	key           paseto.V4SymmetricKey
+	db         *bun.DB
+	orders     ActiveOrderLoader
+	hasher     *PasswordHasher
+	location   *time.Location
+	accessTTL  time.Duration
+	refreshTTL time.Duration
+	key        paseto.V4SymmetricKey
 }
 
 func NewService(
 	database *bun.DB,
-	users UserRepository,
-	refreshTokens RefreshTokenRepository,
-	workspaces workspace.Repository,
 	orders ActiveOrderLoader,
 	hasher *PasswordHasher,
 	location *time.Location,
@@ -54,16 +48,13 @@ func NewService(
 	}
 
 	return &Service{
-		db:            database,
-		users:         users,
-		refreshTokens: refreshTokens,
-		workspaces:    workspaces,
-		orders:        orders,
-		hasher:        hasher,
-		location:      location,
-		accessTTL:     accessTTL,
-		refreshTTL:    refreshTTL,
-		key:           key,
+		db:         database,
+		orders:     orders,
+		hasher:     hasher,
+		location:   location,
+		accessTTL:  accessTTL,
+		refreshTTL: refreshTTL,
+		key:        key,
 	}, nil
 }
 
@@ -73,7 +64,8 @@ func (s *Service) Login(ctx context.Context, phone, password string) (*LoginResu
 		return nil, httpx.ValidationError("phone and password are required")
 	}
 
-	user, err := s.users.GetByPhone(ctx, s.db, normalizedPhone)
+	userRepo := NewUserRepo(s.db)
+	user, err := userRepo.GetByPhone(ctx, normalizedPhone)
 	if err != nil {
 		return nil, httpx.InternalError("failed to load user", err)
 	}
@@ -89,7 +81,8 @@ func (s *Service) Login(ctx context.Context, phone, password string) (*LoginResu
 		return nil, httpx.NewError(401, "invalid_credentials", "invalid phone or password")
 	}
 
-	access, err := s.workspaces.GetPrimaryAccess(ctx, s.db, user.ID)
+	wsRepo := workspace.NewWorkspaceRepo(s.db)
+	access, err := wsRepo.GetPrimaryAccess(ctx, user.ID)
 	if err != nil {
 		return nil, httpx.InternalError("failed to resolve workspace access", err)
 	}
@@ -109,7 +102,8 @@ func (s *Service) Login(ctx context.Context, phone, password string) (*LoginResu
 	}
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		return s.refreshTokens.Insert(ctx, tx, refreshRecord)
+		txRefreshRepo := NewRefreshTokenRepo(tx)
+		return txRefreshRepo.Insert(ctx, refreshRecord)
 	}); err != nil {
 		return nil, httpx.InternalError("failed to persist refresh token", err)
 	}
@@ -143,7 +137,10 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPa
 	var pair TokenPair
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		stored, err := s.refreshTokens.GetByHash(ctx, tx, hashToken(rawRefreshToken), true)
+		txRefreshRepo := NewRefreshTokenRepo(tx)
+		txWsRepo := workspace.NewWorkspaceRepo(tx)
+
+		stored, err := txRefreshRepo.GetByHash(ctx, hashToken(rawRefreshToken), true)
 		if err != nil {
 			return err
 		}
@@ -157,7 +154,7 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPa
 			return httpx.NewError(401, "refresh_token_expired", "refresh token has expired")
 		}
 
-		access, err := s.workspaces.GetAccess(ctx, tx, claims.UserID, claims.WorkspaceID)
+		access, err := txWsRepo.GetAccess(ctx, claims.UserID, claims.WorkspaceID)
 		if err != nil {
 			return err
 		}
@@ -171,10 +168,10 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPa
 			return err
 		}
 
-		if err := s.refreshTokens.Insert(ctx, tx, replacementRecord); err != nil {
+		if err := txRefreshRepo.Insert(ctx, replacementRecord); err != nil {
 			return err
 		}
-		if err := s.refreshTokens.Rotate(ctx, tx, stored.ID, replacementRecord.ID, now); err != nil {
+		if err := txRefreshRepo.Rotate(ctx, stored.ID, replacementRecord.ID, now); err != nil {
 			return err
 		}
 		return nil
@@ -186,7 +183,8 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken string) (*TokenPa
 }
 
 func (s *Service) Bootstrap(ctx context.Context, authCtx *identity.Context) (*BootstrapData, error) {
-	user, err := s.users.GetByID(ctx, s.db, authCtx.UserID)
+	userRepo := NewUserRepo(s.db)
+	user, err := userRepo.GetByID(ctx, authCtx.UserID)
 	if err != nil {
 		return nil, httpx.InternalError("failed to load user", err)
 	}
@@ -194,7 +192,8 @@ func (s *Service) Bootstrap(ctx context.Context, authCtx *identity.Context) (*Bo
 		return nil, httpx.UnauthorizedError("user is inactive")
 	}
 
-	access, err := s.workspaces.GetAccess(ctx, s.db, authCtx.UserID, authCtx.WorkspaceID)
+	wsRepo := workspace.NewWorkspaceRepo(s.db)
+	access, err := wsRepo.GetAccess(ctx, authCtx.UserID, authCtx.WorkspaceID)
 	if err != nil {
 		return nil, httpx.InternalError("failed to resolve workspace access", err)
 	}

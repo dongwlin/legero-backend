@@ -11,12 +11,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type Repository interface {
-	GetPrimaryAccess(ctx context.Context, db bun.IDB, userID uuid.UUID) (*Access, error)
-	GetAccess(ctx context.Context, db bun.IDB, userID, workspaceID uuid.UUID) (*Access, error)
+type WorkspaceRepo struct {
+	db bun.IDB
 }
 
-type BunRepository struct{}
+func NewWorkspaceRepo(db bun.IDB) *WorkspaceRepo {
+	return &WorkspaceRepo{db: db}
+}
 
 type accessRow struct {
 	UserID        uuid.UUID `bun:"user_id"`
@@ -26,9 +27,9 @@ type accessRow struct {
 	CreatedAt     time.Time `bun:"created_at"`
 }
 
-func (r *BunRepository) GetPrimaryAccess(ctx context.Context, db bun.IDB, userID uuid.UUID) (*Access, error) {
+func (r *WorkspaceRepo) GetPrimaryAccess(ctx context.Context, userID uuid.UUID) (*Access, error) {
 	row := new(accessRow)
-	err := db.NewSelect().
+	err := r.db.NewSelect().
 		TableExpr("workspace_members AS wm").
 		ColumnExpr("wm.user_id").
 		ColumnExpr("wm.workspace_id").
@@ -49,9 +50,9 @@ func (r *BunRepository) GetPrimaryAccess(ctx context.Context, db bun.IDB, userID
 	return mapAccess(row), nil
 }
 
-func (r *BunRepository) GetAccess(ctx context.Context, db bun.IDB, userID, workspaceID uuid.UUID) (*Access, error) {
+func (r *WorkspaceRepo) GetAccess(ctx context.Context, userID, workspaceID uuid.UUID) (*Access, error) {
 	row := new(accessRow)
-	err := db.NewSelect().
+	err := r.db.NewSelect().
 		TableExpr("workspace_members AS wm").
 		ColumnExpr("wm.user_id").
 		ColumnExpr("wm.workspace_id").

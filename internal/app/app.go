@@ -16,7 +16,6 @@ import (
 	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/stats"
-	"github.com/dongwlin/legero-backend/internal/workspace"
 	"github.com/dongwlin/legero-backend/migrations"
 )
 
@@ -56,9 +55,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		time.Now,
 	)
 
-	userRepo := &auth.BunUserRepository{}
-	refreshRepo := &auth.BunRefreshTokenRepository{}
-	workspaceRepo := &workspace.BunRepository{}
 	statsRepo := &stats.BunRepository{}
 
 	orderService := order.NewService(
@@ -69,9 +65,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 
 	authService, err := auth.NewService(
 		db,
-		userRepo,
-		refreshRepo,
-		workspaceRepo,
 		orderService,
 		auth.NewPasswordHasher(cfg.Argon2),
 		location,

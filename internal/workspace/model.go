@@ -46,3 +46,15 @@ type WorkspaceMemberModel struct {
 	Role        string    `bun:"role,notnull"`
 	CreatedAt   time.Time `bun:"created_at,notnull"`
 }
+
+func Permissions(role Role) []string {
+	permissions := []string{"orders:read", "orders:write"}
+	if role == RoleOwner {
+		permissions = append(permissions, "orders:clear")
+	}
+	return permissions
+}
+
+func CanClear(role Role) bool {
+	return role == RoleOwner
+}
