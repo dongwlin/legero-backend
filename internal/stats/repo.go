@@ -9,11 +9,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type Repository interface {
-	Daily(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, timezone string, from, to time.Time) ([]DailyRow, error)
+type StatsRepo struct {
+	db bun.IDB
 }
 
-type BunRepository struct{}
+func NewStatsRepo(db bun.IDB) *StatsRepo {
+	return &StatsRepo{db: db}
+}
 
 type dailyRowModel struct {
 	Date            time.Time `bun:"biz_date"`
@@ -21,9 +23,9 @@ type dailyRowModel struct {
 	TotalPriceCents int       `bun:"total_price_cents"`
 }
 
-func (r *BunRepository) Daily(ctx context.Context, db bun.IDB, workspaceID uuid.UUID, timezone string, from, to time.Time) ([]DailyRow, error) {
+func (r *StatsRepo) Daily(ctx context.Context, workspaceID uuid.UUID, timezone string, from, to time.Time) ([]DailyRow, error) {
 	var models []dailyRowModel
-	if err := db.NewRaw(`
+	if err := r.db.NewRaw(`
 with days as (
   select generate_series(?::date, ?::date, interval '1 day')::date as biz_date
 ),

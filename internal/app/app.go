@@ -55,8 +55,6 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		time.Now,
 	)
 
-	statsRepo := &stats.BunRepository{}
-
 	orderService := order.NewService(
 		db,
 		location,
@@ -77,7 +75,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		return nil, err
 	}
 
-	statsService := stats.NewService(db, statsRepo, cfg.BizTimezone)
+	statsService := stats.NewService(db, cfg.BizTimezone)
 
 	authHandler := auth.NewHandler(authService, location)
 	orderHandler := order.NewHandler(orderService, location)

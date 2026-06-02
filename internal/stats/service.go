@@ -18,14 +18,12 @@ type DailyRow struct {
 
 type Service struct {
 	db       *bun.DB
-	repo     Repository
 	timezone string
 }
 
-func NewService(database *bun.DB, repo Repository, timezone string) *Service {
+func NewService(database *bun.DB, timezone string) *Service {
 	return &Service{
 		db:       database,
-		repo:     repo,
 		timezone: timezone,
 	}
 }
@@ -34,7 +32,9 @@ func (s *Service) Daily(ctx context.Context, workspaceID uuid.UUID, from, to tim
 	if to.Before(from) {
 		return nil, httpx.ValidationError("to must be greater than or equal to from")
 	}
-	rows, err := s.repo.Daily(ctx, s.db, workspaceID, s.timezone, from, to)
+
+	repo := NewStatsRepo(s.db)
+	rows, err := repo.Daily(ctx, workspaceID, s.timezone, from, to)
 	if err != nil {
 		return nil, httpx.InternalError("failed to load daily stats", err)
 	}
