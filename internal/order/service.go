@@ -20,12 +20,12 @@ type Service struct {
 }
 
 func NewService(
-	database *bun.DB,
+	db *bun.DB,
 	location *time.Location,
 	publisher Publisher,
 ) *Service {
 	return &Service{
-		db:        database,
+		db:        db,
 		location:  location,
 		publisher: publisher,
 	}
