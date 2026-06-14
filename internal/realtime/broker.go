@@ -34,7 +34,7 @@ func NewBroker() *Broker {
 }
 
 func (b *Broker) Publish(workspaceID uuid.UUID, eventType string, payload any) {
-	message, err := newMessage(eventType, payload)
+	message, err := NewMessage(eventType, payload)
 	if err != nil {
 		return
 	}
@@ -90,7 +90,7 @@ func (b *Broker) Subscribe(workspaceID uuid.UUID) (<-chan Message, func()) {
 	return subscription.channel, cancel
 }
 
-func newMessage(eventType string, payload any) (Message, error) {
+func NewMessage(eventType string, payload any) (Message, error) {
 	if payload == nil {
 		return Message{Type: eventType}, nil
 	}

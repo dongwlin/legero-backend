@@ -6,26 +6,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"github.com/dongwlin/legero-backend/internal/auth"
+	"github.com/dongwlin/legero-backend/internal/handler"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
-	"github.com/dongwlin/legero-backend/internal/infra/logger"
-	"github.com/dongwlin/legero-backend/internal/order"
-	"github.com/dongwlin/legero-backend/internal/realtime"
-	"github.com/dongwlin/legero-backend/internal/stats"
+	"github.com/dongwlin/legero-backend/internal/middleware"
+	"github.com/dongwlin/legero-backend/internal/service"
 )
 
 func newRouter(
 	appLogger zerolog.Logger,
-	authService *auth.Service,
-	authHandler *auth.Handler,
-	orderHandler *order.Handler,
-	statsHandler *stats.Handler,
-	realtimeHandler *realtime.Handler,
+	authService *service.Auth,
+	authHandler *handler.Auth,
+	orderHandler *handler.Order,
+	statsHandler *handler.Stats,
+	realtimeHandler *handler.Realtime,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(
-		httpx.CORSMiddleware(),
-		logger.Gin(appLogger),
+		middleware.CORS(),
+		middleware.Logger(appLogger),
 		gin.Recovery(),
 	)
 	router.GET("/healthz", func(c *gin.Context) {
@@ -38,7 +36,7 @@ func newRouter(
 	api.GET("/ws", realtimeHandler.ServeWS)
 
 	protected := api.Group("/")
-	protected.Use(auth.Middleware(authService))
+	protected.Use(middleware.Auth(authService))
 	protected.GET("/bootstrap", authHandler.Bootstrap)
 	protected.GET("/orders", orderHandler.List)
 	protected.POST("/orders", orderHandler.Create)
@@ -49,7 +47,7 @@ func newRouter(
 	protected.POST("/orders/actions/clear", orderHandler.Clear)
 	protected.POST("/realtime/session", realtimeHandler.CreateSession)
 	protected.GET("/stats/daily", func(c *gin.Context) {
-		authCtx, ok := auth.ContextFromGin(c)
+		authCtx, ok := handler.AuthContext(c)
 		if !ok {
 			httpx.AbortError(c, httpx.UnauthorizedError("missing auth context"))
 			return

@@ -7,10 +7,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/dongwlin/legero-backend/internal/auth"
+	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
-	"github.com/dongwlin/legero-backend/internal/workspace"
+	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/service"
 )
 
 // create-user command flags
@@ -36,7 +37,7 @@ func init() {
 	createUserCmd.Flags().String(flagPassword, "", "login password")
 	createUserCmd.Flags().String(flagWorkspace, "", "workspace name to create when workspace-id is omitted")
 	createUserCmd.Flags().String(flagWorkspaceID, "", "existing workspace id to attach the user to")
-	createUserCmd.Flags().String(flagRole, string(workspace.RoleOwner), "membership role: owner or staff")
+	createUserCmd.Flags().String(flagRole, string(model.RoleOwner), "membership role: owner or staff")
 
 	// Mark required flags
 	_ = createUserCmd.MarkFlagRequired(flagPhone)
@@ -82,18 +83,18 @@ func runCreateUser(cmd *cobra.Command) error {
 	}()
 
 	// Create user service
-	service := auth.NewBootstrapUserService(
+	svc := service.NewUser(
 		db,
-		auth.NewPasswordHasher(cfg.Argon2),
+		crypto.NewPasswordHasher(cfg.Argon2),
 	)
 
 	// Create user
-	result, err := service.CreateUser(ctx, auth.CreateUserInput{
+	result, err := svc.CreateUser(ctx, service.CreateUserInput{
 		Phone:       phone,
 		Password:    password,
 		WorkspaceID: workspaceID,
 		Workspace:   workspaceName,
-		Role:        workspace.Role(roleText),
+		Role:        model.Role(roleText),
 	})
 	if err != nil {
 		return err

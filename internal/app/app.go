@@ -10,12 +10,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/auth"
+	"github.com/dongwlin/legero-backend/internal/infra/crypto"
+	"github.com/dongwlin/legero-backend/internal/handler"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
-	"github.com/dongwlin/legero-backend/internal/order"
 	"github.com/dongwlin/legero-backend/internal/realtime"
-	"github.com/dongwlin/legero-backend/internal/stats"
+	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/dongwlin/legero-backend/migrations"
 )
 
@@ -44,7 +44,7 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 
 	realtimeBroker := realtime.NewBroker()
 	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now)
-	realtimeHandler := realtime.NewHandler(
+	realtimeHandler := handler.NewRealtime(
 		realtimeBroker,
 		realtimeSessions,
 		location,
@@ -55,16 +55,16 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		time.Now,
 	)
 
-	orderService := order.NewService(
+	orderService := service.NewOrder(
 		db,
 		location,
 		realtimeBroker,
 	)
 
-	authService, err := auth.NewService(
+	authService, err := service.NewAuth(
 		db,
 		orderService,
-		auth.NewPasswordHasher(cfg.Argon2),
+		crypto.NewPasswordHasher(cfg.Argon2),
 		location,
 		cfg.AccessTokenTTL,
 		cfg.RefreshTokenTTL,
@@ -75,11 +75,11 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 		return nil, err
 	}
 
-	statsService := stats.NewService(db, cfg.BizTimezone)
+	statsService := service.NewStats(db, cfg.BizTimezone)
 
-	authHandler := auth.NewHandler(authService, location)
-	orderHandler := order.NewHandler(orderService, location)
-	statsHandler := stats.NewHandler(statsService, location)
+	authHandler := handler.NewAuth(authService, location)
+	orderHandler := handler.NewOrder(orderService, location)
+	statsHandler := handler.NewStats(statsService, location)
 
 	router := newRouter(
 		appLogger,
