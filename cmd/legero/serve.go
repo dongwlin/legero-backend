@@ -2,18 +2,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
-	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/dongwlin/legero-backend/internal/app"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/logger"
-	"github.com/dongwlin/legero-backend/internal/infra/shutdown"
 )
 
 var serveCmd = &cobra.Command{
@@ -42,39 +37,12 @@ func runHTTPServer() error {
 	// Create app context
 	ctx := context.Background()
 
-	// Create shutdown handler
-	handler := shutdown.New(ctx)
-
 	// Bootstrap application
 	application, err := app.New(ctx, cfg, appLogger)
 	if err != nil {
 		return fmt.Errorf("bootstrap app: %w", err)
 	}
 
-	// Start HTTP server in goroutine
-	go func() {
-		log.Info().Str("addr", cfg.HTTPAddr).Msg("listening")
-		if err := application.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Msg("http server error")
-		}
-	}()
-
-	// Wait for shutdown signal
-	<-handler.Done()
-	log.Info().Msg("shutdown signal received")
-
-	// Graceful shutdown with timeout
-	return handler.Shutdown(30*time.Second, func(ctx context.Context) error {
-		log.Info().Msg("shutting down http server")
-		if err := application.Server.Shutdown(ctx); err != nil {
-			return fmt.Errorf("shutdown http server: %w", err)
-		}
-		return nil
-	}, func(ctx context.Context) error {
-		log.Info().Msg("closing application resources")
-		if err := application.Close(); err != nil {
-			return fmt.Errorf("close application: %w", err)
-		}
-		return nil
-	})
+	// Run blocks until shutdown signal, then gracefully stops
+	return application.Run(ctx)
 }
