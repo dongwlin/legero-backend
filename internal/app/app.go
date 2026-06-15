@@ -8,84 +8,62 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/handler"
-	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
-	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/shutdown"
 	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/service"
-	"github.com/dongwlin/legero-backend/migrations"
 )
 
 type Application struct {
-	config   *config.Config
-	location *time.Location
-	db       *bun.DB
-	router   *gin.Engine
-	server   *http.Server
+	infra  *Infra
+	router *gin.Engine
+	server *http.Server
 }
 
-func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Application, error) {
-	location, err := time.LoadLocation(cfg.BizTimezone)
-	if err != nil {
-		return nil, fmt.Errorf("load biz timezone: %w", err)
-	}
-
-	if err := migrations.Migrate(cfg.DatabaseURL); err != nil {
-		return nil, fmt.Errorf("run migrations: %w", err)
-	}
-
-	db, err := database.New(ctx, database.Options{DSN: cfg.DatabaseURL})
-	if err != nil {
-		return nil, err
-	}
-
+func New(infra *Infra) (*Application, error) {
 	realtimeBroker := realtime.NewBroker()
-	realtimeSessions := realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now)
+	realtimeSessions := realtime.NewSessionManager(infra.Config.RealtimeSessionTTL, time.Now)
 	realtimeHandler := handler.NewRealtime(
 		realtimeBroker,
 		realtimeSessions,
-		location,
-		cfg.RealtimeHeartbeatInterval,
-		cfg.WSWriteTimeout,
-		cfg.WSReadTimeout,
-		cfg.WSAllowedOrigins,
+		infra.Location,
+		infra.Config.RealtimeHeartbeatInterval,
+		infra.Config.WSWriteTimeout,
+		infra.Config.WSReadTimeout,
+		infra.Config.WSAllowedOrigins,
 		time.Now,
 	)
 
 	orderService := service.NewOrder(
-		db,
-		location,
+		infra.DB,
+		infra.Location,
 		realtimeBroker,
 	)
 
 	authService, err := service.NewAuth(
-		db,
+		infra.DB,
 		orderService,
-		crypto.NewPasswordHasher(cfg.Argon2),
-		location,
-		cfg.AccessTokenTTL,
-		cfg.RefreshTokenTTL,
-		cfg.PasetoSymmetricKey,
+		crypto.NewPasswordHasher(infra.Config.Argon2),
+		infra.Location,
+		infra.Config.AccessTokenTTL,
+		infra.Config.RefreshTokenTTL,
+		infra.Config.PasetoSymmetricKey,
 	)
 	if err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 
-	statsService := service.NewStats(db, cfg.BizTimezone)
+	statsService := service.NewStats(infra.DB, infra.Config.BizTimezone)
 
-	authHandler := handler.NewAuth(authService, location)
-	orderHandler := handler.NewOrder(orderService, location)
-	statsHandler := handler.NewStats(statsService, location)
+	authHandler := handler.NewAuth(authService, infra.Location)
+	orderHandler := handler.NewOrder(orderService, infra.Location)
+	statsHandler := handler.NewStats(statsService, infra.Location)
 
 	router := newRouter(
-		appLogger,
+		infra.Logger,
 		authService,
 		authHandler,
 		orderHandler,
@@ -94,17 +72,15 @@ func New(ctx context.Context, cfg *config.Config, appLogger zerolog.Logger) (*Ap
 	)
 
 	server := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              infra.Config.HTTPAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	return &Application{
-		config:   cfg,
-		location: location,
-		db:       db,
-		router:   router,
-		server:   server,
+		infra:  infra,
+		router: router,
+		server: server,
 	}, nil
 }
 
@@ -114,7 +90,7 @@ func (a *Application) Run(ctx context.Context) error {
 	handler := shutdown.New(ctx)
 
 	go func() {
-		log.Info().Str("addr", a.config.HTTPAddr).Msg("listening")
+		log.Info().Str("addr", a.infra.Config.HTTPAddr).Msg("listening")
 		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error().Err(err).Msg("http server error")
 		}
@@ -133,7 +109,7 @@ func (a *Application) Run(ctx context.Context) error {
 		},
 		func(ctx context.Context) error {
 			log.Info().Msg("closing application resources")
-			if err := a.db.Close(); err != nil {
+			if err := a.infra.Close(); err != nil {
 				return fmt.Errorf("close application: %w", err)
 			}
 			return nil

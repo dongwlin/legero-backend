@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dongwlin/legero-backend/internal/app"
-	"github.com/dongwlin/legero-backend/internal/infra/config"
-	"github.com/dongwlin/legero-backend/internal/infra/logger"
 )
 
 var serveCmd = &cobra.Command{
@@ -25,21 +23,19 @@ func init() {
 }
 
 func runHTTPServer() error {
-	// Initialize logger (sets global log.Logger)
-	appLogger := logger.New()
-
-	// Load config
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
 	// Create app context
 	ctx := context.Background()
 
-	// Bootstrap application
-	application, err := app.New(ctx, cfg, appLogger)
+	// Bootstrap infrastructure (config, DB, migrations, logger)
+	infra, err := app.NewInfra(ctx)
 	if err != nil {
+		return fmt.Errorf("bootstrap infra: %w", err)
+	}
+
+	// Bootstrap application (services, handlers, router)
+	application, err := app.New(infra)
+	if err != nil {
+		_ = infra.Close()
 		return fmt.Errorf("bootstrap app: %w", err)
 	}
 

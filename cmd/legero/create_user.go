@@ -7,9 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/dongwlin/legero-backend/internal/app"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
-	"github.com/dongwlin/legero-backend/internal/infra/config"
-	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -54,12 +53,6 @@ func runCreateUser(cmd *cobra.Command) error {
 	workspaceIDText, _ := cmd.Flags().GetString(flagWorkspaceID)
 	roleText, _ := cmd.Flags().GetString(flagRole)
 
-	// Load config
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
 	// Parse workspace ID if provided
 	var workspaceID *uuid.UUID
 	if workspaceIDText != "" {
@@ -73,19 +66,19 @@ func runCreateUser(cmd *cobra.Command) error {
 	// Create context
 	ctx := context.Background()
 
-	// Connect to database
-	db, err := database.New(ctx, database.Options{DSN: cfg.DatabaseURL})
+	// Bootstrap infrastructure (config, DB, migrations)
+	infra, err := app.NewInfra(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = db.Close()
+		_ = infra.Close()
 	}()
 
 	// Create user service
 	svc := service.NewUser(
-		db,
-		crypto.NewPasswordHasher(cfg.Argon2),
+		infra.DB,
+		crypto.NewPasswordHasher(infra.Config.Argon2),
 	)
 
 	// Create user
