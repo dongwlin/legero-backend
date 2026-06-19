@@ -11,10 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/dongwlin/legero-backend/internal/handler"
-	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/shutdown"
-	"github.com/dongwlin/legero-backend/internal/realtime"
-	"github.com/dongwlin/legero-backend/internal/service"
 )
 
 type Application struct {
@@ -24,47 +21,27 @@ type Application struct {
 }
 
 func New(infra *Infra) (*Application, error) {
-	realtimeBroker := realtime.NewBroker()
-	realtimeSessions := realtime.NewSessionManager(infra.Config.RealtimeSessionTTL, time.Now)
-	realtimeHandler := handler.NewRealtime(
-		realtimeBroker,
-		realtimeSessions,
-		infra.Location,
-		infra.Config.RealtimeHeartbeatInterval,
-		infra.Config.WSWriteTimeout,
-		infra.Config.WSReadTimeout,
-		infra.Config.WSAllowedOrigins,
-		time.Now,
-	)
-
-	orderService := service.NewOrder(
-		infra.DB,
-		infra.Location,
-		realtimeBroker,
-	)
-
-	authService, err := service.NewAuth(
-		infra.DB,
-		orderService,
-		crypto.NewPasswordHasher(infra.Config.Argon2),
-		infra.Location,
-		infra.Config.AccessTokenTTL,
-		infra.Config.RefreshTokenTTL,
-		infra.Config.PasetoSymmetricKey,
-	)
+	services, err := newServices(infra)
 	if err != nil {
 		return nil, err
 	}
 
-	statsService := service.NewStats(infra.DB, infra.Config.BizTimezone)
+	realtimeHandler := handler.NewRealtime(
+		services.broker, services.sessionMgr,
+		infra.Location,
+		infra.Config.RealtimeHeartbeatInterval,
+		infra.Config.WSWriteTimeout, infra.Config.WSReadTimeout,
+		infra.Config.WSAllowedOrigins,
+		time.Now,
+	)
 
-	authHandler := handler.NewAuth(authService, infra.Location)
-	orderHandler := handler.NewOrder(orderService, infra.Location)
-	statsHandler := handler.NewStats(statsService, infra.Location)
+	authHandler := handler.NewAuth(services.Auth, infra.Location)
+	orderHandler := handler.NewOrder(services.Order, infra.Location)
+	statsHandler := handler.NewStats(services.Stats, infra.Location)
 
 	router := newRouter(
 		infra.Logger,
-		authService,
+		services.Auth,
 		authHandler,
 		orderHandler,
 		statsHandler,
