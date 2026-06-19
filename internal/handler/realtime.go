@@ -10,7 +10,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/timex"
-	"github.com/dongwlin/legero-backend/internal/realtime"
+	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 )
 
 const defaultReadLimitBytes int64 = 1024

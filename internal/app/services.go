@@ -1,30 +1,19 @@
 package app
 
 import (
-	"time"
-
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
-	"github.com/dongwlin/legero-backend/internal/realtime"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
-// Services holds all wired business Services.
-// Internal realtime components (broker, session manager) are unexported —
-// they are consumed by handlers in app.New().
+// Services holds all wired business services.
 type Services struct {
 	Auth  *service.Auth
 	Order *service.Order
 	Stats *service.Stats
-
-	broker     *realtime.Broker
-	sessionMgr *realtime.SessionManager
 }
 
 func newServices(infra *Infra) (*Services, error) {
-	broker := realtime.NewBroker()
-	sessionMgr := realtime.NewSessionManager(infra.Config.RealtimeSessionTTL, time.Now)
-
-	orderSvc := service.NewOrder(infra.DB, infra.Location, broker)
+	orderSvc := service.NewOrder(infra.DB, infra.Location, infra.Broker)
 
 	authSvc, err := service.NewAuth(
 		infra.DB,
@@ -42,10 +31,8 @@ func newServices(infra *Infra) (*Services, error) {
 	statsSvc := service.NewStats(infra.DB, infra.Config.BizTimezone)
 
 	return &Services{
-		Auth:       authSvc,
-		Order:      orderSvc,
-		Stats:      statsSvc,
-		broker:     broker,
-		sessionMgr: sessionMgr,
+		Auth:  authSvc,
+		Order: orderSvc,
+		Stats: statsSvc,
 	}, nil
 }

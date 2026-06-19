@@ -11,6 +11,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/logger"
+	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/migrations"
 )
 
@@ -20,6 +21,8 @@ type Infra struct {
 	DB       *bun.DB
 	Location *time.Location
 	Logger   zerolog.Logger
+	Broker   *realtime.Broker
+	Sessions *realtime.SessionManager
 }
 
 // NewInfra loads configuration, runs migrations, and connects to the database.
@@ -52,6 +55,8 @@ func NewInfra(ctx context.Context) (*Infra, error) {
 		DB:       db,
 		Location: location,
 		Logger:   appLogger,
+		Broker:   realtime.NewBroker(),
+		Sessions: realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now),
 	}, nil
 }
 

@@ -25,7 +25,7 @@ func New(infra *Infra) (*Application, error) {
 	}
 
 	realtimeHandler := handler.NewRealtime(
-		services.broker, services.sessionMgr,
+		infra.Broker, infra.Sessions,
 		infra.Location,
 		infra.Config.RealtimeHeartbeatInterval,
 		infra.Config.WSWriteTimeout, infra.Config.WSReadTimeout,
