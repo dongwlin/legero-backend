@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
 	"github.com/dongwlin/legero-backend/internal/handler"
@@ -16,7 +15,6 @@ import (
 
 type Application struct {
 	infra  *Infra
-	router *gin.Engine
 	server *http.Server
 }
 
@@ -56,7 +54,6 @@ func New(infra *Infra) (*Application, error) {
 
 	return &Application{
 		infra:  infra,
-		router: router,
 		server: server,
 	}, nil
 }
