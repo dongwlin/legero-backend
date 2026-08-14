@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"github.com/spf13/cobra"
@@ -21,4 +21,9 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringP(flagConfig, "c", "", "config file path (default: config/config.yaml)")
+}
+
+// Execute runs the root command.
+func Execute() error {
+	return rootCmd.Execute()
 }

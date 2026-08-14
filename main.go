@@ -2,10 +2,12 @@ package main
 
 import (
 	"os"
+
+	"github.com/dongwlin/legero-backend/cmd"
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
