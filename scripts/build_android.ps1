@@ -25,7 +25,21 @@ try {
 
     Write-Host "Building $target for Android..."
     $startTime = Get-Date
-    go build -trimpath --ldflags='-s -w' -o $outputPath $sourcePath
+
+    # Derive build info and inject it via ldflags; falls back to defaults
+    # when git metadata is unavailable.
+    $version = git describe --tags --always --dirty 2>$null
+    if (-not $version) { $version = "dev" }
+    $commit = git rev-parse --short HEAD 2>$null
+    if (-not $commit) { $commit = "none" }
+    $buildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+    $ldflags = "-s -w"
+    $ldflags += " -X 'github.com/dongwlin/legero-backend/internal/infra/config.Version=$version'"
+    $ldflags += " -X 'github.com/dongwlin/legero-backend/internal/infra/config.Commit=$commit'"
+    $ldflags += " -X 'github.com/dongwlin/legero-backend/internal/infra/config.BuildTime=$buildTime'"
+
+    go build -trimpath --ldflags="$ldflags" -o $outputPath $sourcePath
     $endTime = Get-Date
     $duration = $endTime - $startTime
 

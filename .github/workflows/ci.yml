@@ -71,9 +71,22 @@ jobs:
 
       # Build commands are inlined here on purpose (no dependency on
       # scripts/build_android.sh / build_android.ps1); same flags:
-      # -trimpath -ldflags="-s -w"
+      # -trimpath -ldflags="-s -w", plus injected build info.
+      - name: Compute build info
+        id: buildinfo
+        run: |
+          echo "version=${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}" >> "$GITHUB_OUTPUT"
+          echo "commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: go build -trimpath -ldflags="-s -w" -o dist/legero-${{ matrix.target }} ./cmd/legero
+        run: >-
+          go build -trimpath
+          -ldflags="-s -w
+          -X github.com/dongwlin/legero-backend/internal/infra/config.Version=${{ steps.buildinfo.outputs.version }}
+          -X github.com/dongwlin/legero-backend/internal/infra/config.Commit=${{ steps.buildinfo.outputs.commit }}
+          -X github.com/dongwlin/legero-backend/internal/infra/config.BuildTime=${{ steps.buildinfo.outputs.build_time }}"
+          -o dist/legero-${{ matrix.target }} ./cmd/legero
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
