@@ -86,7 +86,7 @@ jobs:
           -X github.com/dongwlin/legero-backend/internal/infra/config.Version=${{ steps.buildinfo.outputs.version }}
           -X github.com/dongwlin/legero-backend/internal/infra/config.Commit=${{ steps.buildinfo.outputs.commit }}
           -X github.com/dongwlin/legero-backend/internal/infra/config.BuildTime=${{ steps.buildinfo.outputs.build_time }}"
-          -o dist/legero-${{ matrix.target }} ./cmd/legero
+          -o dist/legero-${{ matrix.target }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 target="legero"
-source_path="./cmd/legero"
+source_path="."
 output_dir="$(pwd)/bin/android"
 output_path="${output_dir}/${target}"
 
@@ -13,8 +13,8 @@ if [[ ! -d "${output_dir}" ]]; then
     echo "Created output directory: ${output_dir}"
 fi
 
-if [[ ! -d "${source_path}" ]]; then
-    echo "Source not found: ${source_path}" >&2
+if [[ ! -f "${source_path}/main.go" ]]; then
+    echo "Source not found: ${source_path}/main.go" >&2
     exit 1
 fi
 

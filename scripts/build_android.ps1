@@ -9,7 +9,7 @@ try {
     $env:GOARCH = "arm64"
 
     $target = "legero"
-    $sourcePath = "./cmd/legero"
+    $sourcePath = "."
     $outputDir = Join-Path -Path $PWD.Path -ChildPath "bin/android"
     $outputPath = Join-Path -Path $outputDir -ChildPath $target
 
@@ -18,8 +18,8 @@ try {
         Write-Host "Created output directory: $outputDir" -ForegroundColor Green
     }
 
-    if (-not (Test-Path $sourcePath)) {
-        Write-Host "Source file not found: $sourcePath" -ForegroundColor Red
+    if (-not (Test-Path (Join-Path $sourcePath "main.go"))) {
+        Write-Host "Source file not found: $(Join-Path $sourcePath "main.go")" -ForegroundColor Red
         exit 1
     }
 
