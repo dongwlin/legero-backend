@@ -1,0 +1,93 @@
+# Project Overview
+
+Legero is a restaurant order-management backend written in Go. It manages users, workspaces, and orders, and pushes order updates to clients in real time over WebSocket. The binary is a single Cobra CLI; running it without a subcommand starts the HTTP server.
+
+## Tech Stack
+
+* Go 1.25 — `go.mod` is the source of truth; CI uses `go-version-file`
+* HTTP: `gin-gonic/gin`, with CORS, request logging, and recovery middleware
+* CLI: `spf13/cobra` — subcommands `serve`, `create-user`, `version`
+* Database: PostgreSQL via `jackc/pgx/v5` connection pool + `uptrace/bun` ORM (pgdialect)
+* Migrations: `golang-migrate/migrate/v4` over embedded SQL files (`migrations/*.sql`, `//go:embed`); applied automatically at startup
+* Auth: phone + password; Argon2id password hashing; PASETO v4 symmetric tokens with rotating refresh tokens
+* Realtime: `gorilla/websocket` broker + session manager with heartbeats
+* Config: `spf13/viper` — YAML file plus environment-variable overrides
+* Logging: `rs/zerolog` (console writer, RFC3339 timestamps)
+* Tests: `stretchr/testify` unit tests + `testcontainers-go` integration tests (postgres:18)
+
+## Repository Layout
+
+```
+cmd/                  cobra root command and subcommands (serve, create-user, version)
+config/               config.example.yaml (config/config.yaml is gitignored)
+internal/
+  app/                composition root: infra bootstrap, service wiring, router, lifecycle
+  handler/            HTTP/WS handlers and request DTOs
+  middleware/         gin middleware (auth, cors, logger)
+  model/              unified domain + ORM models, domain rules, sentinel errors
+  repo/               data access (bun queries)
+  service/            business logic
+  infra/
+    config/           viper config loading; build info (Version/Commit/BuildTime/GoVersion)
+    crypto/           Argon2id password hashing; PASETO token issue/verify
+    database/         pgx pool + bun setup
+    httpx/            AppError and JSON response helpers
+    identity/         authenticated identity context
+    logger/           zerolog setup
+    realtime/         WebSocket broker and session manager
+    shutdown/         graceful-shutdown helper
+    timex/            time formatting helpers
+migrations/           embedded SQL migrations (up/down)
+scripts/              build_android.sh / build_android.ps1
+bin/                  local build output (gitignored)
+.github/workflows/    ci.yml
+```
+
+## Architecture
+
+Requests flow through the standard layered structure:
+
+`middleware → handler → service → repo → model`
+
+* `internal/app` is the composition root. `NewInfra` bootstraps config, logger, timezone, migrations, DB, and the realtime broker/session manager; `New` wires services and handlers and builds the gin router; `Run` serves until a shutdown signal and then drains gracefully (30s timeout).
+* Handlers translate HTTP/WS into service calls and render JSON via `internal/infra/httpx`; they contain no business logic.
+* Services hold business rules and orchestrate repos and the realtime broker.
+* Repos encapsulate all bun queries; they take a `bun.IDB` so callers can pass a transaction.
+* Models are the single source of truth for both domain logic and DB mapping (bun tags); rules such as step toggling and price computation live in `internal/model` and are unit-testable without a database.
+
+## Domain Model
+
+* `users` — phone, Argon2id password hash, active flag
+* `workspaces` + `workspace_members` — restaurant workspaces; membership roles `owner` | `staff`
+* `orders` — order form (staple/meat/greens/condiments/packaging codes), step status codes, price in cents, audit fields (`created_by`, `updated_by`, `completed_at`), per-workspace `display_no` sequenced by `workspace_daily_counters`
+* `refresh_tokens` — rotating refresh tokens (hash stored, revoked/rotated chain)
+* `workspace_daily_counters` — per-workspace per-business-day sequence for order numbers
+
+Order form values are encoded as smallint codes (`stapleTypeCode`, `selectedMeatCodes`, …), with cooking step statuses `unrequired` | `not-started` | `completed` (`model.StepStatus*`). An order can be marked served only when all required steps are completed (`Order.CanServe`).
+
+## API Surface
+
+Public:
+
+* `GET /healthz` — liveness
+* `POST /api/auth/login`, `POST /api/auth/refresh` — PASETO auth
+* `GET /api/ws?ticket=...` — WebSocket upgrade, authenticated by a one-time ticket
+
+Authenticated (Bearer access token):
+
+* `GET /api/bootstrap` — current user/workspace context
+* `GET /api/orders`, `POST /api/orders`
+* `PUT /api/orders/:id`, `DELETE /api/orders/:id`
+* `POST /api/orders/:id/actions/toggle-step`
+* `POST /api/orders/:id/actions/toggle-served`
+* `POST /api/orders/actions/clear`
+* `POST /api/realtime/session` — issue a one-time WS ticket
+* `GET /api/stats/daily` — daily stats for the authenticated workspace
+
+## Realtime WebSocket
+
+A client first calls `POST /api/realtime/session` (authenticated) to obtain a short-lived one-time ticket, then connects to `GET /api/ws?ticket=...`. The broker fans out order events (`internal/model/order_events.go`) to connected sessions. Heartbeat interval, session TTL, read/write timeouts, and allowed origins are configured under `realtime:` and `ws:`.
+
+## Configuration
+
+Configuration is loaded from `config/config.yaml` by default (see `config/config.example.yaml`), overridable via `-c` and via environment variables (bindings in `internal/infra/config/config.go`, e.g. `DATABASE_URL`, `HTTP_ADDR`, `PASETO_SYMMETRIC_KEY`, `BIZ_TIMEZONE`). Build metadata (`Version`/`Commit`/`BuildTime`/`GoVersion`) lives in `internal/infra/config` and is injected via ldflags; see `docs/agents/commands.md`.
