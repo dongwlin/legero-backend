@@ -5,7 +5,7 @@
 * `main.go` at the repo root is thin: it only calls `cmd.Execute()`.
 * `cmd/` holds cobra commands only; all bootstrap goes through the wire injectors in `internal/app` (`InitializeApplication`, `InitializeUserCreator`), which return a cleanup function for closing resources.
 * `internal/app` is the composition root. Providers live in `internal/app/provider.go`, injectors in `internal/app/wire.go`, and generated code in `internal/app/wire_gen.go` (regenerate with `wire ./internal/app` or `go generate`). Services, handlers, and the router are wired here and nowhere else.
-* Dependencies flow one way: `middleware → handler → service → repo`, with `model` shared by all layers. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
+* Dependencies flow one way: `handler → service → repo`, with `model` shared by all layers; gin middleware lives in `internal/handler/middleware` and only depends on `service`/`infra`. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
 * Cross-cutting concerns (config, crypto, database, httpx, identity, logger, realtime, shutdown, timex) live in `internal/infra` and must not import domain packages.
 
 ## Models & Domain Logic

@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/handler/middleware"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
-	"github.com/dongwlin/legero-backend/internal/middleware"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 

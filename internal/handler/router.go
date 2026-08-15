@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"github.com/dongwlin/legero-backend/internal/handler/middleware"
 	"github.com/dongwlin/legero-backend/internal/handler/v1"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
-	"github.com/dongwlin/legero-backend/internal/middleware"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 

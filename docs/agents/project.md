@@ -23,8 +23,7 @@ cmd/                  cobra root command and subcommands (serve, create-user, ve
 config/               config.example.yaml (config/config.yaml is gitignored)
 internal/
   app/                composition root: wire providers/injectors, router, lifecycle
-  handler/            router + versioned handlers (v1) and request/response DTOs
-  middleware/         gin middleware (auth, cors, logger)
+  handler/            router + middleware (auth, cors, logger) + versioned handlers (v1) and request/response DTOs
   model/              unified domain + ORM models, domain rules, sentinel errors
   repo/               data access (bun queries)
   service/            business logic: interfaces + request/result types in `service`, implementations in `service/v1`
@@ -48,10 +47,10 @@ bin/                  local build output (gitignored)
 
 Requests flow through the standard layered structure:
 
-`middleware → handler → service → repo → model`
+`handler → service → repo → model` (gin middleware lives inside the handler package)
 
 * `internal/app` is the composition root. Google wire (`wire.go` → generated `wire_gen.go`) bootstraps config, logger, timezone, migrations, DB, the realtime broker/session manager, services, handlers, and the gin router; `Application.Run` serves until a shutdown signal and then drains gracefully (30s timeout). The `create-user` CLI uses its own injector (`InitializeUserCreator`).
-* Handlers translate HTTP/WS into service calls and render JSON via `internal/infra/httpx`; they contain no business logic.
+* Handlers (and the gin middleware in `internal/handler/middleware`) translate HTTP/WS into service calls and render JSON via `internal/infra/httpx`; they contain no business logic.
 * Services hold business rules and orchestrate repos and the realtime broker.
 * Repos encapsulate all bun queries; they take a `bun.IDB` so callers can pass a transaction.
 * Models are the single source of truth for both domain logic and DB mapping (bun tags); rules such as step toggling and price computation live in `internal/model` and are unit-testable without a database.
