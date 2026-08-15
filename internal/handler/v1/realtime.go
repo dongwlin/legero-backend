@@ -35,6 +35,7 @@ func NewRealtimeHandler(
 	sessions *realtime.SessionManager,
 	location *time.Location,
 	cfg *config.Config,
+	now func() time.Time,
 ) *Realtime {
 	heartbeatInterval := cfg.RealtimeHeartbeatInterval
 	if heartbeatInterval <= 0 {
@@ -48,6 +49,9 @@ func NewRealtimeHandler(
 	if readTimeout <= 0 {
 		readTimeout = heartbeatInterval * 3
 	}
+	if now == nil {
+		now = time.Now
+	}
 
 	handler := &Realtime{
 		broker:            broker,
@@ -56,7 +60,7 @@ func NewRealtimeHandler(
 		heartbeatInterval: heartbeatInterval,
 		writeTimeout:      writeTimeout,
 		readTimeout:       readTimeout,
-		now:               time.Now,
+		now:               now,
 	}
 	handler.upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,

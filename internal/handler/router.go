@@ -25,6 +25,7 @@ func NewRouter(
 	location *time.Location,
 	cfg *config.Config,
 	appLogger zerolog.Logger,
+	now func() time.Time,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(
@@ -45,6 +46,7 @@ func NewRouter(
 		sessions,
 		location,
 		cfg,
+		now,
 	)
 
 	return router

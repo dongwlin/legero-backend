@@ -32,6 +32,7 @@ var ServerProviderSet = wire.NewSet(
 	ProvideDatabase,
 	ProvideBroker,
 	ProvideSessionManager,
+	ProvideNow,
 	ProvidePasswordHasher,
 	ProvideTimezone,
 	ProvideTokenTTL,
@@ -50,8 +51,6 @@ var ServerProviderSet = wire.NewSet(
 var UserCreatorProviderSet = wire.NewSet(
 	config.Load,
 	ProvideContext,
-	ProvideLogger,
-	ProvideLocation,
 	ProvideDatabase,
 	ProvidePasswordHasher,
 	servicev1.NewUser,
@@ -93,6 +92,11 @@ func ProvideBroker() *realtime.Broker {
 // ProvideSessionManager creates the WebSocket session manager.
 func ProvideSessionManager(cfg *config.Config) *realtime.SessionManager {
 	return realtime.NewSessionManager(cfg.RealtimeSessionTTL, time.Now)
+}
+
+// ProvideNow exposes the current-time function for handlers.
+func ProvideNow() func() time.Time {
+	return time.Now
 }
 
 // ProvidePasswordHasher creates the Argon2 password hasher.

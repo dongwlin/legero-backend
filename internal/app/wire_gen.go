@@ -44,7 +44,8 @@ func InitializeApplication() (*Application, func(), error) {
 	stats := v1.NewStats(db, string2)
 	sessionManager := ProvideSessionManager(configConfig)
 	logger := ProvideLogger()
-	engine := handler.NewRouter(auth, order, stats, broker, sessionManager, location, configConfig, logger)
+	v2 := ProvideNow()
+	engine := handler.NewRouter(auth, order, stats, broker, sessionManager, location, configConfig, logger, v2)
 	server := ProvideHTTPServer(configConfig, engine)
 	application := NewApplication(server)
 	return application, func() {

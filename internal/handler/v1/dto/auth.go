@@ -4,13 +4,13 @@ import "github.com/dongwlin/legero-backend/internal/model"
 
 // LoginRequest carries the login credentials.
 type LoginRequest struct {
-	Phone    string `json:"phone" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
 
 // RefreshRequest carries the refresh token for rotation.
 type RefreshRequest struct {
-	RefreshToken string `json:"refreshToken" binding:"required"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 // AuthUser is the minimal user representation in auth responses.

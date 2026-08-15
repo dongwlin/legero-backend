@@ -21,11 +21,12 @@ func RegisterRoutes(
 	sessions *realtime.SessionManager,
 	location *time.Location,
 	cfg *config.Config,
+	now func() time.Time,
 ) {
 	authHandler := NewAuthHandler(authSvc, location)
 	orderHandler := NewOrderHandler(orderSvc, location)
 	statsHandler := NewStatsHandler(statsSvc, location)
-	realtimeHandler := NewRealtimeHandler(broker, sessions, location, cfg)
+	realtimeHandler := NewRealtimeHandler(broker, sessions, location, cfg, now)
 
 	authGroup := r.Group("/auth")
 	{
