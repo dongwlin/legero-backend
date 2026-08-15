@@ -26,12 +26,12 @@
 ## Time, Money & Formatting
 
 * Store times as `timestamptz`; the test harness pins `timezone=UTC`.
-* Services/handlers receive `*time.Location` (from `biz.timezone`, loaded in `NewInfra`); format timestamps with `timex.FormatTime` and never hardcode a zone.
+* Services/handlers receive `*time.Location` (from `biz.timezone`, provided by `internal/app.ProvideLocation`); format timestamps with `timex.FormatTime` and never hardcode a zone.
 * Keep prices as integer cents end to end; convert only in DTO/display layers.
 
 ## Logging
 
-* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized by `internal/infra/logger.New()` during `NewInfra`.
+* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized by `internal/infra/logger.New()` in `internal/app.ProvideLogger`.
 
 ## Configuration
 
