@@ -23,21 +23,14 @@ func init() {
 }
 
 func runHTTPServer() error {
-	// Create app context
 	ctx := context.Background()
 
-	// Bootstrap infrastructure (config, DB, migrations, logger)
-	infra, err := app.NewInfra(ctx)
+	// Wire the application (config, DB, services, handlers, router).
+	application, cleanup, err := app.InitializeApplication()
 	if err != nil {
-		return fmt.Errorf("bootstrap infra: %w", err)
-	}
-
-	// Bootstrap application (services, handlers, router)
-	application, err := app.New(infra)
-	if err != nil {
-		_ = infra.Close()
 		return fmt.Errorf("bootstrap app: %w", err)
 	}
+	defer cleanup()
 
 	// Run blocks until shutdown signal, then gracefully stops
 	return application.Run(ctx)

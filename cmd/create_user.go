@@ -8,10 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dongwlin/legero-backend/internal/app"
-	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/service"
-	servicev1 "github.com/dongwlin/legero-backend/internal/service/v1"
 )
 
 // create-user command flags
@@ -67,23 +65,15 @@ func runCreateUser(cmd *cobra.Command) error {
 	// Create context
 	ctx := context.Background()
 
-	// Bootstrap infrastructure (config, DB, migrations)
-	infra, err := app.NewInfra(ctx)
+	// Wire the create-user bootstrap (config, DB, services).
+	creator, cleanup, err := app.InitializeUserCreator()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = infra.Close()
-	}()
-
-	// Create user service
-	svc := servicev1.NewUser(
-		infra.DB,
-		crypto.NewPasswordHasher(infra.Config.Argon2),
-	)
+	defer cleanup()
 
 	// Create user
-	result, err := svc.CreateUser(ctx, service.CreateUserInput{
+	result, err := creator.Create(ctx, service.CreateUserInput{
 		Phone:       phone,
 		Password:    password,
 		WorkspaceID: workspaceID,
