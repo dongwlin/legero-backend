@@ -1,32 +1,35 @@
-package handler
+package v1
 
 import (
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
+	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
-// Stats handles statistics HTTP endpoints.
-type Stats struct {
-	svc      service.Stats
+// StatsHandler handles statistics HTTP endpoints.
+type StatsHandler struct {
+	statsSvc service.Stats
 	location *time.Location
 }
 
-// NewStats creates a new StatsHandler.
-func NewStats(svc service.Stats, location *time.Location) *Stats {
-	return &Stats{
-		svc:      svc,
-		location: location,
-	}
+// NewStatsHandler creates a new StatsHandler.
+func NewStatsHandler(statsSvc service.Stats, location *time.Location) *StatsHandler {
+	return &StatsHandler{statsSvc: statsSvc, location: location}
 }
 
 // Daily returns per-day order counts and revenue for a workspace within a date range.
-func (h *Stats) Daily(c *gin.Context, workspaceID uuid.UUID) {
+func (h *StatsHandler) Daily(c *gin.Context) {
+	actor, ok := actorFromGin(c)
+	if !ok {
+		httpx.AbortError(c, httpx.UnauthorizedError("missing auth context"))
+		return
+	}
+
 	from, err := time.ParseInLocation("2006-01-02", c.Query("from"), h.location)
 	if err != nil {
 		httpx.AbortError(c, httpx.ValidationError("from must use YYYY-MM-DD"))
@@ -38,28 +41,22 @@ func (h *Stats) Daily(c *gin.Context, workspaceID uuid.UUID) {
 		return
 	}
 
-	items, err := h.svc.Daily(c.Request.Context(), workspaceID, from, to)
+	items, err := h.statsSvc.Daily(c.Request.Context(), actor.WorkspaceID, from, to)
 	if err != nil {
 		httpx.AbortError(c, err)
 		return
 	}
 
-	type itemDTO struct {
-		Date            string `json:"date"`
-		OrderCount      int    `json:"orderCount"`
-		TotalPriceCents int    `json:"totalPriceCents"`
-	}
-
-	responseItems := make([]itemDTO, 0, len(items))
+	responseItems := make([]dto.DailyItem, 0, len(items))
 	for _, item := range items {
-		responseItems = append(responseItems, itemDTO{
+		responseItems = append(responseItems, dto.DailyItem{
 			Date:            item.Date.In(h.location).Format("2006-01-02"),
 			OrderCount:      item.OrderCount,
 			TotalPriceCents: item.TotalPriceCents,
 		})
 	}
 
-	httpx.JSON(c, http.StatusOK, gin.H{
-		"items": responseItems,
+	httpx.JSON(c, http.StatusOK, dto.DailyResponse{
+		Items: responseItems,
 	})
 }
