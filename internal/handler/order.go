@@ -16,12 +16,12 @@ import (
 
 // Order handles order HTTP endpoints.
 type Order struct {
-	svc      *service.Order
+	svc      service.Order
 	location *time.Location
 }
 
 // NewOrder creates a new OrderHandler.
-func NewOrder(svc *service.Order, location *time.Location) *Order {
+func NewOrder(svc service.Order, location *time.Location) *Order {
 	return &Order{
 		svc:      svc,
 		location: location,

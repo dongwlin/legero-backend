@@ -11,6 +11,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/service"
+	servicev1 "github.com/dongwlin/legero-backend/internal/service/v1"
 )
 
 // create-user command flags
@@ -76,7 +77,7 @@ func runCreateUser(cmd *cobra.Command) error {
 	}()
 
 	// Create user service
-	svc := service.NewUser(
+	svc := servicev1.NewUser(
 		infra.DB,
 		crypto.NewPasswordHasher(infra.Config.Argon2),
 	)

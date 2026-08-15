@@ -13,12 +13,12 @@ import (
 
 // Stats handles statistics HTTP endpoints.
 type Stats struct {
-	svc      *service.Stats
+	svc      service.Stats
 	location *time.Location
 }
 
 // NewStats creates a new StatsHandler.
-func NewStats(svc *service.Stats, location *time.Location) *Stats {
+func NewStats(svc service.Stats, location *time.Location) *Stats {
 	return &Stats{
 		svc:      svc,
 		location: location,

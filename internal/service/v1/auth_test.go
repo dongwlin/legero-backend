@@ -1,4 +1,4 @@
-package service
+package v1
 
 import (
 	"context"
@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
+	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/dongwlin/legero-backend/migrations"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -90,7 +91,7 @@ func (m *mockOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]model.Or
 }
 
 // newTestService creates a Service wired to testDB with test-friendly settings.
-func newTestService(t *testing.T, db *bun.DB) *Auth {
+func newTestService(t *testing.T, db *bun.DB) service.Auth {
 	t.Helper()
 
 	keyBytes := make([]byte, 32)
@@ -184,7 +185,7 @@ func TestLogin_Success(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
-	result, err := svc.Login(ctx, "13800001001", "password123")
+	result, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001001", Password: "password123"})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -209,7 +210,7 @@ func TestLogin_InvalidPhone(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	_, err := svc.Login(ctx, "00000000000", "password123")
+	_, err := svc.Login(ctx, service.LoginRequest{Phone: "00000000000", Password: "password123"})
 	require.Error(t, err)
 
 	var appErr *httpx.AppError
@@ -226,7 +227,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		u.IsActive = true
 	})
 
-	_, err := svc.Login(ctx, "13800001002", "wrongpassword")
+	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001002", Password: "wrongpassword"})
 	require.Error(t, err)
 
 	var appErr *httpx.AppError
@@ -243,7 +244,7 @@ func TestLogin_InactiveUser(t *testing.T) {
 		u.IsActive = false
 	})
 
-	_, err := svc.Login(ctx, "13800001003", "password123")
+	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001003", Password: "password123"})
 	require.Error(t, err)
 
 	var appErr *httpx.AppError
@@ -261,7 +262,7 @@ func TestLogin_NoWorkspace(t *testing.T) {
 	})
 	// No workspace member created.
 
-	_, err := svc.Login(ctx, "13800001004", "password123")
+	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001004", Password: "password123"})
 	require.Error(t, err)
 
 	var appErr *httpx.AppError
@@ -284,7 +285,7 @@ func TestRefresh_Success(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
-	loginResult, err := svc.Login(ctx, "13800002001", "password123")
+	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800002001", Password: "password123"})
 	require.NoError(t, err)
 
 	pair, err := svc.Refresh(ctx, loginResult.TokenPair.RefreshToken)
@@ -330,7 +331,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
-	loginResult, err := svc.Login(ctx, "13800002002", "password123")
+	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800002002", Password: "password123"})
 	require.NoError(t, err)
 
 	// Wait for the token to expire.
@@ -355,7 +356,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
-	loginResult, err := svc.Login(ctx, "13800002003", "password123")
+	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800002003", Password: "password123"})
 	require.NoError(t, err)
 
 	// Revoke the refresh token by setting revoked_at.

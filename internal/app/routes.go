@@ -14,7 +14,7 @@ import (
 
 func newRouter(
 	appLogger zerolog.Logger,
-	authService *service.Auth,
+	authService service.Auth,
 	authHandler *handler.Auth,
 	orderHandler *handler.Order,
 	statsHandler *handler.Stats,

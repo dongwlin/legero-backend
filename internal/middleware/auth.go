@@ -11,7 +11,7 @@ import (
 
 // Auth returns a gin.HandlerFunc that validates the Bearer access token
 // and stores the identity context in the gin context.
-func Auth(svc *service.Auth) gin.HandlerFunc {
+func Auth(svc service.Auth) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

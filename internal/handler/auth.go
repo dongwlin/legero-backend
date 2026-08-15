@@ -15,7 +15,7 @@ import (
 
 // Auth handles authentication HTTP endpoints.
 type Auth struct {
-	svc      *service.Auth
+	svc      service.Auth
 	location *time.Location
 }
 
@@ -48,7 +48,7 @@ type bootstrapResponse struct {
 }
 
 // NewAuth creates a new AuthHandler.
-func NewAuth(svc *service.Auth, location *time.Location) *Auth {
+func NewAuth(svc service.Auth, location *time.Location) *Auth {
 	return &Auth{
 		svc:      svc,
 		location: location,
@@ -63,7 +63,7 @@ func (h *Auth) Login(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.Login(c.Request.Context(), request.Phone, request.Password)
+	result, err := h.svc.Login(c.Request.Context(), service.LoginRequest{Phone: request.Phone, Password: request.Password})
 	if err != nil {
 		httpx.AbortError(c, err)
 		return

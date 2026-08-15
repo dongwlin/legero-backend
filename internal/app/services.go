@@ -3,19 +3,20 @@ package app
 import (
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/service"
+	servicev1 "github.com/dongwlin/legero-backend/internal/service/v1"
 )
 
 // Services holds all wired business services.
 type Services struct {
-	Auth  *service.Auth
-	Order *service.Order
-	Stats *service.Stats
+	Auth  service.Auth
+	Order service.Order
+	Stats service.Stats
 }
 
 func newServices(infra *Infra) (*Services, error) {
-	orderSvc := service.NewOrder(infra.DB, infra.Location, infra.Broker)
+	orderSvc := servicev1.NewOrder(infra.DB, infra.Location, infra.Broker)
 
-	authSvc, err := service.NewAuth(
+	authSvc, err := servicev1.NewAuth(
 		infra.DB,
 		orderSvc,
 		crypto.NewPasswordHasher(infra.Config.Argon2),
@@ -28,7 +29,7 @@ func newServices(infra *Infra) (*Services, error) {
 		return nil, err
 	}
 
-	statsSvc := service.NewStats(infra.DB, infra.Config.BizTimezone)
+	statsSvc := servicev1.NewStats(infra.DB, infra.Config.BizTimezone)
 
 	return &Services{
 		Auth:  authSvc,
