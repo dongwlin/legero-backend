@@ -25,8 +25,9 @@ internal/
   app/                composition root: wire providers/injectors, router, lifecycle
   apperr/             transport-agnostic application errors (AppError/Kind, constructors)
   handler/            router + middleware (auth, cors, logger) + versioned handlers (v1), request/response DTOs, and httpresp response helpers (Kind -> HTTP mapping)
-  model/              unified domain + ORM models, domain rules, sentinel errors
+  domain/             pure domain models and business rules
   repo/               data access (bun queries)
+    schema/           bun persistence mappings, repo-private by convention
   service/            business logic: interfaces + request/result types in `service`, implementations in `service/v1`
   infra/
     config/           viper config loading; build info (Version/Commit/BuildTime/GoVersion)

@@ -22,7 +22,7 @@
 * Use the constructors in `internal/apperr`: `New`/`Wrap` and the helpers `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `InternalError`.
 * Services and infra must not import `internal/handler/httpresp`; `apperr` knows nothing about HTTP. Only handlers map errors to responses.
 * Render errors in handlers with `httpresp.AbortError(c, err)`, which maps `apperr.Kind` to the HTTP status (400/401/403/404/409/500). Non-`AppError` errors become a generic `internal_error` 500, so wrap expected failures explicitly.
-* Translate sentinels from `model/errors.go` into an `AppError` at the service boundary rather than leaking them raw to the API.
+* Translate sentinels from `internal/domain/errors.go` into an `AppError` at the service boundary rather than leaking them raw to the API.
 
 ## Time, Money & Formatting
 
