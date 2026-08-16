@@ -32,6 +32,16 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # wire.go only compiles under the wireinject build tag, so normal
+      # builds consume the committed wire_gen.go. Regenerate it with the
+      # wire version pinned in go.mod (same command as the //go:generate
+      # directive) and fail when the committed file is stale, e.g. after a
+      # ProviderSet change without rerunning wire.
+      - name: Check generated code is up to date
+        run: |
+          go run -mod=mod github.com/google/wire/cmd/wire gen ./internal/app
+          git diff --exit-code -- internal/app/wire_gen.go
+
       # Integration tests start a postgres:18 container via testcontainers;
       # GitHub-hosted ubuntu runners ship Docker by default.
       - name: Test

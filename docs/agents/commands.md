@@ -65,6 +65,7 @@ Output: `bin/android/legero` (android/arm64, CGO disabled). The scripts derive v
 `.github/workflows/ci.yml` runs on push/PR to `main` and on tags:
 
 1. `go vet ./...`
-2. `go test ./... -count=1 -timeout 15m` (testcontainers)
-3. Cross-build `linux-amd64`, `linux-arm64`, `android-arm64` (`CGO_ENABLED=0`) and upload artifacts
-4. On `v*` tags: publish a GitHub release with the artifacts
+2. Regenerate `internal/app/wire_gen.go` with the go.mod-pinned wire and fail if `git diff` is non-empty (generated-code freshness check)
+3. `go test ./... -count=1 -timeout 15m` (testcontainers)
+4. Cross-build `linux-amd64`, `linux-arm64`, `android-arm64` (`CGO_ENABLED=0`) and upload artifacts
+5. On `v*` tags: publish a GitHub release with the artifacts
