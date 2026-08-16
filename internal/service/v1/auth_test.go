@@ -104,6 +104,13 @@ func (l *trackingOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]doma
 	return []domain.Order{}, nil
 }
 
+// defaultAccessLoader returns the production workspace-access loader: the
+// repository bound to the given database handle. Keep in sync with the
+// loader factory in ProvideAuth (internal/app/provider.go).
+func defaultAccessLoader(db bun.IDB) service.WorkspaceAccessLoader {
+	return repo.NewWorkspace(db)
+}
+
 // newTestService creates a Service wired to testDB with test-friendly settings.
 func newTestService(t *testing.T, db *bun.DB) service.Auth {
 	t.Helper()
@@ -113,6 +120,20 @@ func newTestService(t *testing.T, db *bun.DB) service.Auth {
 // newTestServiceWithLoader creates a Service wired to testDB with a custom
 // ActiveOrderLoader.
 func newTestServiceWithLoader(t *testing.T, db *bun.DB, loader service.ActiveOrderLoader) service.Auth {
+	t.Helper()
+	return newTestServiceFull(t, db, loader, defaultAccessLoader)
+}
+
+// newTestServiceFull creates a Service wired to testDB with a custom
+// ActiveOrderLoader and a custom workspace-access factory. The factory lets a
+// test simulate roles the database schema does not permit without mutating the
+// shared schema.
+func newTestServiceFull(
+	t *testing.T,
+	db *bun.DB,
+	loader service.ActiveOrderLoader,
+	newAccessLoader func(bun.IDB) service.WorkspaceAccessLoader,
+) service.Auth {
 	t.Helper()
 
 	keyBytes := make([]byte, 32)
@@ -129,6 +150,7 @@ func newTestServiceWithLoader(t *testing.T, db *bun.DB, loader service.ActiveOrd
 
 	svc, err := NewAuth(
 		db,
+		newAccessLoader,
 		loader,
 		hasher,
 		time.UTC,
@@ -191,25 +213,26 @@ func createTestWorkspaceMember(t *testing.T, ctx context.Context, db bun.IDB, us
 	}
 }
 
-// dropRoleConstraint removes the workspace_members role CHECK constraint so a
-// test can simulate a future role the application does not yet support (the
-// migration pins roles to owner/staff). Invalid-role rows are deleted and the
-// constraint is restored on cleanup.
-func dropRoleConstraint(t *testing.T, ctx context.Context) {
-	t.Helper()
+// stubAccessLoader returns predefined Accesses from the workspace-access seam
+// instead of querying the database. It lets tests simulate a workspace role
+// the application does not yet support (the migration pins roles to
+// owner/staff) without dropping the shared schema constraint.
+type stubAccessLoader struct {
+	primary *domain.Access
+	access  *domain.Access
+}
 
-	_, err := testDB.NewRaw("ALTER TABLE workspace_members DROP CONSTRAINT workspace_members_role_check").Exec(ctx)
-	require.NoError(t, err)
+func (l *stubAccessLoader) GetPrimaryAccess(_ context.Context, _ uuid.UUID) (*domain.Access, error) {
+	return l.primary, nil
+}
 
-	t.Cleanup(func() {
-		// Remove rows that would violate the constraint before restoring it.
-		_, err := testDB.NewRaw("DELETE FROM workspace_members WHERE role NOT IN ('owner', 'staff')").Exec(ctx)
-		require.NoError(t, err)
-		_, err = testDB.NewRaw(
-			"ALTER TABLE workspace_members ADD CONSTRAINT workspace_members_role_check CHECK (role in ('owner', 'staff'))",
-		).Exec(ctx)
-		require.NoError(t, err)
-	})
+func (l *stubAccessLoader) GetAccess(_ context.Context, _, _ uuid.UUID) (*domain.Access, error) {
+	return l.access, nil
+}
+
+// stubAccessLoaderFactory wraps a stub so it can be passed to newTestServiceFull.
+func stubAccessLoaderFactory(loader *stubAccessLoader) func(bun.IDB) service.WorkspaceAccessLoader {
+	return func(bun.IDB) service.WorkspaceAccessLoader { return loader }
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +380,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 
 	svc, err := NewAuth(
 		testDB,
+		defaultAccessLoader,
 		&mockOrderLoader{},
 		hasher,
 		time.UTC,
@@ -576,16 +600,24 @@ func TestParseToken_ValidRoles(t *testing.T) {
 func TestLogin_UnknownRole_FailsClosed(t *testing.T) {
 	ctx := context.Background()
 	loader := &trackingOrderLoader{}
-	svc := newTestServiceWithLoader(t, testDB, loader)
-
-	dropRoleConstraint(t, ctx)
 
 	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800004001"
 		u.IsActive = true
 	})
-	wsID := createTestWorkspace(t, ctx, testDB)
-	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "viewer")
+
+	// Simulate a workspace membership whose role the application does not yet
+	// support via the access seam, so no invalid row is ever written to the
+	// shared database.
+	accesses := &stubAccessLoader{
+		primary: &domain.Access{
+			UserID:        userID,
+			WorkspaceID:   uuid.New(),
+			WorkspaceName: "test-workspace",
+			Role:          "viewer",
+		},
+	}
+	svc := newTestServiceFull(t, testDB, loader, stubAccessLoaderFactory(accesses))
 
 	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800004001", Password: "password123"})
 	require.Error(t, err)
@@ -603,16 +635,22 @@ func TestLogin_UnknownRole_FailsClosed(t *testing.T) {
 
 func TestBootstrap_UnknownRole_Forbidden(t *testing.T) {
 	ctx := context.Background()
-	svc := newTestService(t, testDB)
-
-	dropRoleConstraint(t, ctx)
 
 	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800004002"
 		u.IsActive = true
 	})
-	wsID := createTestWorkspace(t, ctx, testDB)
-	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "viewer")
+	wsID := uuid.New()
+
+	accesses := &stubAccessLoader{
+		access: &domain.Access{
+			UserID:        userID,
+			WorkspaceID:   wsID,
+			WorkspaceName: "test-workspace",
+			Role:          "viewer",
+		},
+	}
+	svc := newTestServiceFull(t, testDB, &mockOrderLoader{}, stubAccessLoaderFactory(accesses))
 
 	authCtx := &identity.Context{
 		UserID:      userID,
@@ -630,26 +668,35 @@ func TestBootstrap_UnknownRole_Forbidden(t *testing.T) {
 
 func TestRefresh_DegradedRole_FailsClosed(t *testing.T) {
 	ctx := context.Background()
-	svc := newTestService(t, testDB)
 
 	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800004003"
 		u.IsActive = true
 	})
+	// The workspace row must exist: login persists a refresh token row that
+	// references it via a foreign key.
 	wsID := createTestWorkspace(t, ctx, testDB)
-	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
-
-	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800004003", Password: "password123"})
-	require.NoError(t, err)
 
 	// The workspace role degrades to one the application does not support
-	// (e.g. a future DB role) after the original tokens were issued.
-	dropRoleConstraint(t, ctx)
-	_, err = testDB.NewUpdate().
-		Table("workspace_members").
-		Set("role = ?", "viewer").
-		Where("workspace_id = ? AND user_id = ?", wsID, userID).
-		Exec(ctx)
+	// (e.g. a future DB role) after the original tokens were issued: login
+	// sees the original role, refresh sees the degraded one.
+	accesses := &stubAccessLoader{
+		primary: &domain.Access{
+			UserID:        userID,
+			WorkspaceID:   wsID,
+			WorkspaceName: "test-workspace",
+			Role:          domain.RoleOwner,
+		},
+		access: &domain.Access{
+			UserID:        userID,
+			WorkspaceID:   wsID,
+			WorkspaceName: "test-workspace",
+			Role:          "viewer",
+		},
+	}
+	svc := newTestServiceFull(t, testDB, &mockOrderLoader{}, stubAccessLoaderFactory(accesses))
+
+	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800004003", Password: "password123"})
 	require.NoError(t, err)
 
 	_, err = svc.Refresh(ctx, loginResult.TokenPair.RefreshToken)
@@ -665,7 +712,7 @@ func TestRefresh_DegradedRole_FailsClosed(t *testing.T) {
 	require.Equal(t, 1, refreshCount)
 
 	var rotated bool
-	err = testDB.NewRaw("SELECT rotated_at IS NOT NULL FROM refresh_tokens WHERE user_id = ?", userID).Scan(ctx, &rotated)
+	err = testDB.NewRaw("SELECT rotated_at IS NOT NULL FROM refresh_tokens WHERE user_id = ? LIMIT 1", userID).Scan(ctx, &rotated)
 	require.NoError(t, err)
 	require.False(t, rotated)
 }
