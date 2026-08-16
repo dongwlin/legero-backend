@@ -93,8 +93,26 @@ func (m *mockOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]domain.O
 	return []domain.Order{}, nil
 }
 
+// trackingOrderLoader records ListActive invocations so tests can assert that
+// fail-closed paths never load order data.
+type trackingOrderLoader struct {
+	listActiveCalls int
+}
+
+func (l *trackingOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]domain.Order, error) {
+	l.listActiveCalls++
+	return []domain.Order{}, nil
+}
+
 // newTestService creates a Service wired to testDB with test-friendly settings.
 func newTestService(t *testing.T, db *bun.DB) service.Auth {
+	t.Helper()
+	return newTestServiceWithLoader(t, db, &mockOrderLoader{})
+}
+
+// newTestServiceWithLoader creates a Service wired to testDB with a custom
+// ActiveOrderLoader.
+func newTestServiceWithLoader(t *testing.T, db *bun.DB, loader service.ActiveOrderLoader) service.Auth {
 	t.Helper()
 
 	keyBytes := make([]byte, 32)
@@ -111,7 +129,7 @@ func newTestService(t *testing.T, db *bun.DB) service.Auth {
 
 	svc, err := NewAuth(
 		db,
-		&mockOrderLoader{},
+		loader,
 		hasher,
 		time.UTC,
 		15*time.Minute,
@@ -171,6 +189,27 @@ func createTestWorkspaceMember(t *testing.T, ctx context.Context, db bun.IDB, us
 	if err != nil {
 		t.Fatalf("failed to create test workspace member: %v", err)
 	}
+}
+
+// dropRoleConstraint removes the workspace_members role CHECK constraint so a
+// test can simulate a future role the application does not yet support (the
+// migration pins roles to owner/staff). Invalid-role rows are deleted and the
+// constraint is restored on cleanup.
+func dropRoleConstraint(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	_, err := testDB.NewRaw("ALTER TABLE workspace_members DROP CONSTRAINT workspace_members_role_check").Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		// Remove rows that would violate the constraint before restoring it.
+		_, err := testDB.NewRaw("DELETE FROM workspace_members WHERE role NOT IN ('owner', 'staff')").Exec(ctx)
+		require.NoError(t, err)
+		_, err = testDB.NewRaw(
+			"ALTER TABLE workspace_members ADD CONSTRAINT workspace_members_role_check CHECK (role in ('owner', 'staff'))",
+		).Exec(ctx)
+		require.NoError(t, err)
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -528,4 +567,105 @@ func TestParseToken_ValidRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, role, claims.Role)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// AuthService fail-closed on unknown workspace roles
+// ---------------------------------------------------------------------------
+
+func TestLogin_UnknownRole_FailsClosed(t *testing.T) {
+	ctx := context.Background()
+	loader := &trackingOrderLoader{}
+	svc := newTestServiceWithLoader(t, testDB, loader)
+
+	dropRoleConstraint(t, ctx)
+
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
+		u.Phone = "13800004001"
+		u.IsActive = true
+	})
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "viewer")
+
+	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800004001", Password: "password123"})
+	require.Error(t, err)
+
+	var appErr *apperr.AppError
+	require.True(t, errors.As(err, &appErr))
+	require.Equal(t, apperr.KindForbidden, appErr.Kind)
+
+	// No orders were loaded and no tokens were issued for the unknown role.
+	require.Zero(t, loader.listActiveCalls)
+	refreshCount, err := testDB.NewSelect().Table("refresh_tokens").Where("user_id = ?", userID).Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, refreshCount)
+}
+
+func TestBootstrap_UnknownRole_Forbidden(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestService(t, testDB)
+
+	dropRoleConstraint(t, ctx)
+
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
+		u.Phone = "13800004002"
+		u.IsActive = true
+	})
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "viewer")
+
+	authCtx := &identity.Context{
+		UserID:      userID,
+		WorkspaceID: wsID,
+		Role:        "viewer",
+	}
+
+	_, err := svc.Bootstrap(ctx, authCtx)
+	require.Error(t, err)
+
+	var appErr *apperr.AppError
+	require.True(t, errors.As(err, &appErr))
+	require.Equal(t, apperr.KindForbidden, appErr.Kind)
+}
+
+func TestRefresh_DegradedRole_FailsClosed(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestService(t, testDB)
+
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
+		u.Phone = "13800004003"
+		u.IsActive = true
+	})
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
+
+	loginResult, err := svc.Login(ctx, service.LoginRequest{Phone: "13800004003", Password: "password123"})
+	require.NoError(t, err)
+
+	// The workspace role degrades to one the application does not support
+	// (e.g. a future DB role) after the original tokens were issued.
+	dropRoleConstraint(t, ctx)
+	_, err = testDB.NewUpdate().
+		Table("workspace_members").
+		Set("role = ?", "viewer").
+		Where("workspace_id = ? AND user_id = ?", wsID, userID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.Refresh(ctx, loginResult.TokenPair.RefreshToken)
+	require.Error(t, err)
+
+	var appErr *apperr.AppError
+	require.True(t, errors.As(err, &appErr))
+	require.Equal(t, apperr.KindForbidden, appErr.Kind)
+
+	// No replacement pair was issued and the original token was not rotated.
+	refreshCount, err := testDB.NewSelect().Table("refresh_tokens").Where("user_id = ?", userID).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, refreshCount)
+
+	var rotated bool
+	err = testDB.NewRaw("SELECT rotated_at IS NOT NULL FROM refresh_tokens WHERE user_id = ?", userID).Scan(ctx, &rotated)
+	require.NoError(t, err)
+	require.False(t, rotated)
 }
