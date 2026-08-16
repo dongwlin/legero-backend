@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoleValid(t *testing.T) {
@@ -21,9 +22,7 @@ func TestRoleValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.role.Valid(); got != tt.want {
-				t.Fatalf("Role(%q).Valid() = %v, want %v", tt.role, got, tt.want)
-			}
+			require.Equal(t, tt.want, tt.role.Valid())
 		})
 	}
 }
@@ -52,10 +51,7 @@ func TestRolePermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.role.Permissions()
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("Role(%q).Permissions() = %v, want %v", tt.role, got, tt.want)
-			}
+			require.Equal(t, tt.want, tt.role.Permissions())
 		})
 	}
 }
@@ -76,9 +72,7 @@ func TestRoleCanClear(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.role.CanClear(); got != tt.want {
-				t.Fatalf("Role(%q).CanClear() = %v, want %v", tt.role, got, tt.want)
-			}
+			require.Equal(t, tt.want, tt.role.CanClear())
 		})
 	}
 }
