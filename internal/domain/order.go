@@ -120,6 +120,7 @@ type Order struct {
 	ID                   uuid.UUID
 	WorkspaceID          uuid.UUID
 	DisplayNo            string
+	Version              int64
 	StapleTypeCode       *int16
 	SizeCode             int16
 	CustomSizePriceCents *int
@@ -160,19 +161,30 @@ type ListOrdersResult struct {
 
 // ToggleStepInput carries the payload for toggling a cooking step.
 type ToggleStepInput struct {
-	Step              string     `json:"step"`
+	Step string `json:"step"`
+	// ExpectedVersion is the order version the client last observed; a
+	// mismatch rejects the mutation with 409 instead of blindly overwriting.
+	ExpectedVersion *int64 `json:"expectedVersion"`
+	// ExpectedUpdatedAt is the legacy optimistic-concurrency token, kept for
+	// backward compatibility. ExpectedVersion takes precedence when set.
 	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt"`
 }
 
 // ToggleServedInput carries the payload for toggling the served state.
 type ToggleServedInput struct {
+	ExpectedVersion   *int64     `json:"expectedVersion"`
 	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt"`
 }
 
 // UpdateOrderInput carries the payload for updating an existing order.
 type UpdateOrderInput struct {
-	Form              OrderFormInput `json:"form"`
-	ExpectedUpdatedAt *time.Time     `json:"expectedUpdatedAt"`
+	Form OrderFormInput `json:"form"`
+	// ExpectedVersion is the order version the client last observed; a
+	// mismatch rejects the mutation with 409 instead of blindly overwriting.
+	ExpectedVersion *int64 `json:"expectedVersion"`
+	// ExpectedUpdatedAt is the legacy optimistic-concurrency token, kept for
+	// backward compatibility. ExpectedVersion takes precedence when set.
+	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt"`
 }
 
 // CreateOrdersInput carries the payload for batch-creating orders.

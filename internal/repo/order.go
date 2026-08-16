@@ -152,20 +152,35 @@ func (r *Order) InsertMany(ctx context.Context, orders []domain.Order) error {
 	return nil
 }
 
-func (r *Order) Update(ctx context.Context, order *domain.Order) error {
+// Update persists changes to an order and atomically advances its version.
+//
+// When expectedVersion is non-nil, the row is updated only if its current
+// version matches, which makes the write safe under concurrent updates; a
+// mismatch reports domain.ErrOrderConflict. The caller's order.Version is
+// refreshed with the version returned by the database.
+func (r *Order) Update(ctx context.Context, order *domain.Order, expectedVersion *int64) error {
 	s := toSchemaOrder(order)
-	result, err := r.db.NewUpdate().
+	query := r.db.NewUpdate().
 		Model(s).
 		WherePK().
 		Where("workspace_id = ?", order.WorkspaceID).
-		Exec(ctx)
-	if err != nil {
+		ExcludeColumn("version").
+		Set("version = version + 1").
+		Returning("version")
+	if expectedVersion != nil {
+		query = query.Where("version = ?", *expectedVersion)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			if expectedVersion != nil {
+				return domain.ErrOrderConflict
+			}
+			return sql.ErrNoRows
+		}
 		return fmt.Errorf("update order: %w", err)
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
+	order.Version = s.Version
 	return nil
 }
 
@@ -204,6 +219,7 @@ func toSchemaOrder(o *domain.Order) *schema.Order {
 		ID:                   o.ID,
 		WorkspaceID:          o.WorkspaceID,
 		DisplayNo:            o.DisplayNo,
+		Version:              o.Version,
 		StapleTypeCode:       o.StapleTypeCode,
 		SizeCode:             o.SizeCode,
 		CustomSizePriceCents: o.CustomSizePriceCents,
@@ -235,6 +251,7 @@ func toDomainOrder(s *schema.Order) *domain.Order {
 		ID:                   s.ID,
 		WorkspaceID:          s.WorkspaceID,
 		DisplayNo:            s.DisplayNo,
+		Version:              s.Version,
 		StapleTypeCode:       s.StapleTypeCode,
 		SizeCode:             s.SizeCode,
 		CustomSizePriceCents: s.CustomSizePriceCents,

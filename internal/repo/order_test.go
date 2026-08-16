@@ -35,6 +35,7 @@ func TestInsertMany_SingleOrder(t *testing.T) {
 		ID:                   uuid.New(),
 		WorkspaceID:          wsID,
 		DisplayNo:            "T100",
+		Version:              1,
 		SizeCode:             domain.SizeSmall,
 		StapleAmountCode:     domain.AdjustmentNormal,
 		GreensCode:           domain.AdjustmentNormal,
@@ -84,6 +85,7 @@ func TestOrderRepo_RoundTripAllFields(t *testing.T) {
 		ID:                   uuid.New(),
 		WorkspaceID:          wsID,
 		DisplayNo:            "RT-001",
+		Version:              7,
 		StapleTypeCode:       &stapleTypeCode,
 		SizeCode:             domain.SizeCustom,
 		CustomSizePriceCents: &customSizePriceCents,
@@ -121,6 +123,7 @@ func TestOrderRepo_RoundTripAllFields(t *testing.T) {
 	require.Equal(t, want.ID, got.ID)
 	require.Equal(t, want.WorkspaceID, got.WorkspaceID)
 	require.Equal(t, want.DisplayNo, got.DisplayNo)
+	require.Equal(t, want.Version, got.Version)
 	require.Equal(t, want.CreatedBy, got.CreatedBy)
 	require.Equal(t, want.UpdatedBy, got.UpdatedBy)
 
@@ -169,6 +172,7 @@ func TestInsertMany_MultipleOrders(t *testing.T) {
 			ID:                   uuid.New(),
 			WorkspaceID:          wsID,
 			DisplayNo:            fmt.Sprintf("T%03d", 100+i),
+			Version:              1,
 			SizeCode:             domain.SizeSmall,
 			StapleAmountCode:     domain.AdjustmentNormal,
 			GreensCode:           domain.AdjustmentNormal,
@@ -204,6 +208,7 @@ func TestInsertMany_InvalidFK(t *testing.T) {
 		ID:                   uuid.New(),
 		WorkspaceID:          badWorkspaceID,
 		DisplayNo:            "T999",
+		Version:              1,
 		SizeCode:             domain.SizeSmall,
 		StapleAmountCode:     domain.AdjustmentNormal,
 		GreensCode:           domain.AdjustmentNormal,
@@ -561,7 +566,7 @@ func TestUpdate_FieldsChanged(t *testing.T) {
 	created.Note = "updated note"
 	created.UpdatedAt = time.Now()
 
-	require.NoError(t, repo.Update(ctx, &created))
+	require.NoError(t, repo.Update(ctx, &created, nil))
 
 	got, err := repo.GetByID(ctx, wsID, created.ID)
 	require.NoError(t, err)
@@ -585,7 +590,7 @@ func TestUpdate_WrongWorkspace(t *testing.T) {
 	created.WorkspaceID = wsID2
 	created.DisplayNo = "SHOULD-NOT-WORK"
 
-	err := repo.Update(ctx, &created)
+	err := repo.Update(ctx, &created, nil)
 	require.Error(t, err)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
@@ -601,6 +606,7 @@ func TestUpdate_NonExistentID(t *testing.T) {
 		ID:                   uuid.New(),
 		WorkspaceID:          wsID,
 		DisplayNo:            "FAKE-001",
+		Version:              1,
 		SizeCode:             domain.SizeSmall,
 		StapleAmountCode:     domain.AdjustmentNormal,
 		GreensCode:           domain.AdjustmentNormal,
@@ -617,9 +623,88 @@ func TestUpdate_NonExistentID(t *testing.T) {
 		UpdatedAt:            time.Now(),
 	}
 
-	err := repo.Update(ctx, fakeOrder)
+	err := repo.Update(ctx, fakeOrder, nil)
 	require.Error(t, err)
 	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+// TestUpdate_AdvancesVersionAtomically verifies that every successful update
+// bumps the monotonic version exactly once, even when the caller's in-memory
+// version is stale, and that two consecutive updates within the same second
+// still produce distinguishable versions.
+func TestUpdate_AdvancesVersionAtomically(t *testing.T) {
+	ctx := context.Background()
+	tx, repo := newTestOrderRepo(t, ctx)
+
+	wsID := createTestWorkspace(t, ctx, tx)
+	userID := createTestUser(t, ctx, tx)
+	created := createTestOrder(t, ctx, tx, wsID, userID)
+
+	require.Equal(t, int64(1), created.Version)
+
+	// First update: version 1 -> 2.
+	created.Note = "first update"
+	created.UpdatedAt = time.Now()
+	require.NoError(t, repo.Update(ctx, &created, nil))
+	require.Equal(t, int64(2), created.Version)
+
+	// Second update, immediately after: 2 -> 3. No sleep is needed because
+	// the version, not the timestamp, distinguishes the two commits.
+	created.Note = "second update"
+	created.UpdatedAt = time.Now()
+	require.NoError(t, repo.Update(ctx, &created, nil))
+	require.Equal(t, int64(3), created.Version)
+
+	got, err := repo.GetByID(ctx, wsID, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, int64(3), got.Version)
+	require.Equal(t, "second update", got.Note)
+}
+
+// TestUpdate_ExpectedVersionConflict verifies that a conditional update with
+// a stale expected version is rejected without modifying the order.
+func TestUpdate_ExpectedVersionConflict(t *testing.T) {
+	ctx := context.Background()
+	tx, repo := newTestOrderRepo(t, ctx)
+
+	wsID := createTestWorkspace(t, ctx, tx)
+	userID := createTestUser(t, ctx, tx)
+	created := createTestOrder(t, ctx, tx, wsID, userID)
+
+	stale := int64(0)
+	created.Note = "should not be written"
+	err := repo.Update(ctx, &created, &stale)
+	require.Error(t, err)
+	require.ErrorIs(t, err, domain.ErrOrderConflict)
+
+	got, err := repo.GetByID(ctx, wsID, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, int64(1), got.Version)
+	require.NotEqual(t, "should not be written", got.Note)
+}
+
+// TestUpdate_ExpectedVersionSuccess verifies that a conditional update with
+// the current version succeeds and advances the version.
+func TestUpdate_ExpectedVersionSuccess(t *testing.T) {
+	ctx := context.Background()
+	tx, repo := newTestOrderRepo(t, ctx)
+
+	wsID := createTestWorkspace(t, ctx, tx)
+	userID := createTestUser(t, ctx, tx)
+	created := createTestOrder(t, ctx, tx, wsID, userID)
+
+	expected := int64(1)
+	created.Note = "conditional update applied"
+	require.NoError(t, repo.Update(ctx, &created, &expected))
+	require.Equal(t, int64(2), created.Version)
+
+	got, err := repo.GetByID(ctx, wsID, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, int64(2), got.Version)
+	require.Equal(t, "conditional update applied", got.Note)
 }
 
 // ---------------------------------------------------------------------------
