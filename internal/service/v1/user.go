@@ -41,7 +41,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 	if input.Role == "" {
 		input.Role = domain.RoleOwner
 	}
-	if input.Role != domain.RoleOwner && input.Role != domain.RoleStaff {
+	if !input.Role.Valid() {
 		return nil, fmt.Errorf("role must be owner or staff")
 	}
 	if input.WorkspaceID == nil {
