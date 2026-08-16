@@ -3,9 +3,9 @@
 ## Package Layout & Dependency Direction
 
 * `main.go` at the repo root is thin: it only calls `cmd.Execute()`.
-* `cmd/` holds cobra commands only; all bootstrap goes through `internal/app.NewInfra(ctx)` (config, logger, timezone, migrations, DB, realtime broker/sessions).
-* `internal/app` is the composition root. Services, handlers, and the router are wired here and nowhere else.
-* Dependencies flow one way: `middleware → handler → service → repo`, with `model` shared by all layers. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
+* `cmd/` holds cobra commands only; all bootstrap goes through the wire injectors in `internal/app` (`InitializeApplication`, `InitializeUserCreator`), which return a cleanup function for closing resources.
+* `internal/app` is the composition root. Providers live in `internal/app/provider.go`, injectors in `internal/app/wire.go`, and generated code in `internal/app/wire_gen.go` (regenerate with `wire ./internal/app` or `go generate`). Services, handlers, and the router are wired here and nowhere else.
+* Dependencies flow one way: `handler → service → repo`, with `model` shared by all layers; gin middleware lives in `internal/handler/middleware` and only depends on `service`/`infra`. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
 * Cross-cutting concerns (config, crypto, database, httpx, identity, logger, realtime, shutdown, timex) live in `internal/infra` and must not import domain packages.
 
 ## Models & Domain Logic
@@ -26,12 +26,12 @@
 ## Time, Money & Formatting
 
 * Store times as `timestamptz`; the test harness pins `timezone=UTC`.
-* Services/handlers receive `*time.Location` (from `biz.timezone`, loaded in `NewInfra`); format timestamps with `timex.FormatTime` and never hardcode a zone.
+* Services/handlers receive `*time.Location` (from `biz.timezone`, provided by `internal/app.ProvideLocation`); format timestamps with `timex.FormatTime` and never hardcode a zone.
 * Keep prices as integer cents end to end; convert only in DTO/display layers.
 
 ## Logging
 
-* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized by `internal/infra/logger.New()` during `NewInfra`.
+* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized first thing in `cmd.Execute()` via `internal/infra/logger.New()`, so config loading, migrations, and every CLI command log through the configured ConsoleWriter. `internal/app.ProvideLogger` then supplies the router's logger (re-running `logger.New()` idempotently).
 
 ## Configuration
 
@@ -41,7 +41,7 @@
 ## Cobra Commands
 
 * New subcommands live in `cmd/` with a `flagXxx` constant per flag; require mandatory flags via `MarkFlagRequired`.
-* Commands that need the DB bootstrap through `internal/app.NewInfra` and close it with `defer func() { _ = infra.Close() }()`.
+* Commands that need the DB bootstrap through a wire injector (`app.InitializeApplication`, `app.InitializeUserCreator`) and close resources with `defer cleanup()`.
 * Keep the root command as the default `serve` behavior; do not add side effects to `init()` beyond flag/subcommand registration.
 
 ## Testing

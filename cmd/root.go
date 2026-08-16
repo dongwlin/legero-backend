@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/dongwlin/legero-backend/internal/infra/logger"
 )
 
 // Persistent flags (available to all subcommands)
@@ -24,6 +26,11 @@ func init() {
 }
 
 // Execute runs the root command.
+//
+// The global logger is initialized first so that every command — config
+// loading, database migrations, and the create-user bootstrap — logs through
+// the configured ConsoleWriter instead of zerolog's default logger.
 func Execute() error {
+	logger.New()
 	return rootCmd.Execute()
 }

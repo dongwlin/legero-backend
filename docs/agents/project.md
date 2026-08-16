@@ -13,6 +13,7 @@ Legero is a restaurant order-management backend written in Go. It manages users,
 * Realtime: `gorilla/websocket` broker + session manager with heartbeats
 * Config: `spf13/viper` — YAML file plus environment-variable overrides
 * Logging: `rs/zerolog` (console writer, RFC3339 timestamps)
+* DI: `google/wire` — providers in `internal/app/provider.go`, generated injectors in `internal/app/wire_gen.go`
 * Tests: `stretchr/testify` unit tests + `testcontainers-go` integration tests (postgres:18)
 
 ## Repository Layout
@@ -21,12 +22,11 @@ Legero is a restaurant order-management backend written in Go. It manages users,
 cmd/                  cobra root command and subcommands (serve, create-user, version)
 config/               config.example.yaml (config/config.yaml is gitignored)
 internal/
-  app/                composition root: infra bootstrap, service wiring, router, lifecycle
-  handler/            HTTP/WS handlers and request DTOs
-  middleware/         gin middleware (auth, cors, logger)
+  app/                composition root: wire providers/injectors, router, lifecycle
+  handler/            router + middleware (auth, cors, logger) + versioned handlers (v1) and request/response DTOs
   model/              unified domain + ORM models, domain rules, sentinel errors
   repo/               data access (bun queries)
-  service/            business logic
+  service/            business logic: interfaces + request/result types in `service`, implementations in `service/v1`
   infra/
     config/           viper config loading; build info (Version/Commit/BuildTime/GoVersion)
     crypto/           Argon2id password hashing; PASETO token issue/verify
@@ -47,10 +47,10 @@ bin/                  local build output (gitignored)
 
 Requests flow through the standard layered structure:
 
-`middleware → handler → service → repo → model`
+`handler → service → repo → model` (gin middleware lives inside the handler package)
 
-* `internal/app` is the composition root. `NewInfra` bootstraps config, logger, timezone, migrations, DB, and the realtime broker/session manager; `New` wires services and handlers and builds the gin router; `Run` serves until a shutdown signal and then drains gracefully (30s timeout).
-* Handlers translate HTTP/WS into service calls and render JSON via `internal/infra/httpx`; they contain no business logic.
+* `internal/app` is the composition root. Google wire (`wire.go` → generated `wire_gen.go`) bootstraps config, logger, timezone, migrations, DB, the realtime broker/session manager, services, handlers, and the gin router; `Application.Run` serves until a shutdown signal and then drains gracefully (30s timeout). The `create-user` CLI uses its own injector (`InitializeUserCreator`).
+* Handlers (and the gin middleware in `internal/handler/middleware`) translate HTTP/WS into service calls and render JSON via `internal/infra/httpx`; they contain no business logic.
 * Services hold business rules and orchestrate repos and the realtime broker.
 * Repos encapsulate all bun queries; they take a `bun.IDB` so callers can pass a transaction.
 * Models are the single source of truth for both domain logic and DB mapping (bun tags); rules such as step toggling and price computation live in `internal/model` and are unit-testable without a database.

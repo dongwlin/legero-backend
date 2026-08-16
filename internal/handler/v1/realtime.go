@@ -1,4 +1,4 @@
-package handler
+package v1
 
 import (
 	"net/http"
@@ -8,9 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
+	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/httpx"
-	"github.com/dongwlin/legero-backend/internal/infra/timex"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
+	"github.com/dongwlin/legero-backend/internal/infra/timex"
 )
 
 const defaultReadLimitBytes int64 = 1024
@@ -27,23 +29,23 @@ type Realtime struct {
 	upgrader          websocket.Upgrader
 }
 
-// NewRealtime creates a new Realtime handler.
-func NewRealtime(
+// NewRealtimeHandler creates a new Realtime handler.
+func NewRealtimeHandler(
 	broker *realtime.Broker,
 	sessions *realtime.SessionManager,
 	location *time.Location,
-	heartbeatInterval time.Duration,
-	writeTimeout time.Duration,
-	readTimeout time.Duration,
-	allowedOrigins []string,
+	cfg *config.Config,
 	now func() time.Time,
 ) *Realtime {
+	heartbeatInterval := cfg.RealtimeHeartbeatInterval
 	if heartbeatInterval <= 0 {
 		heartbeatInterval = 20 * time.Second
 	}
+	writeTimeout := cfg.WSWriteTimeout
 	if writeTimeout <= 0 {
 		writeTimeout = 10 * time.Second
 	}
+	readTimeout := cfg.WSReadTimeout
 	if readTimeout <= 0 {
 		readTimeout = heartbeatInterval * 3
 	}
@@ -64,7 +66,7 @@ func NewRealtime(
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return isOriginAllowed(r.Header.Get("Origin"), allowedOrigins)
+			return isOriginAllowed(r.Header.Get("Origin"), cfg.WSAllowedOrigins)
 		},
 	}
 
@@ -85,9 +87,9 @@ func (h *Realtime) CreateSession(c *gin.Context) {
 		return
 	}
 
-	httpx.JSON(c, http.StatusOK, gin.H{
-		"ticket":    ticket,
-		"expiresAt": timex.FormatTime(expiresAt, h.location),
+	httpx.JSON(c, http.StatusOK, dto.CreateSessionResponse{
+		Ticket:    ticket,
+		ExpiresAt: timex.FormatTime(expiresAt, h.location),
 	})
 }
 
