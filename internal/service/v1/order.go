@@ -443,7 +443,7 @@ func wrapError(message string, err error) error {
 // errors before falling back to wrapError.
 func wrapOrderMutationError(message string, err error) error {
 	if errors.Is(err, domain.ErrOrderConflict) {
-		return apperr.ConflictError("order_conflict", "order has been modified by another request")
+		return orderConflictError()
 	}
 	return wrapError(message, err)
 }
