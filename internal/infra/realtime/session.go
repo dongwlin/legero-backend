@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dongwlin/legero-backend/internal/infra/httpx"
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 )
 
@@ -40,7 +40,7 @@ func NewSessionManager(ttl time.Duration, now func() time.Time) *SessionManager 
 
 func (m *SessionManager) Issue(authCtx *identity.Context) (string, time.Time, error) {
 	if authCtx == nil {
-		return "", time.Time{}, httpx.UnauthorizedError("missing auth context")
+		return "", time.Time{}, apperr.UnauthorizedError("missing auth context")
 	}
 
 	now := m.now()
@@ -62,7 +62,7 @@ func (m *SessionManager) Issue(authCtx *identity.Context) (string, time.Time, er
 func (m *SessionManager) Consume(ticket string) (*identity.Context, error) {
 	trimmed := strings.TrimSpace(ticket)
 	if trimmed == "" {
-		return nil, httpx.NewError(401, "realtime_session_invalid", "realtime session is invalid")
+		return nil, apperr.New(apperr.KindUnauthenticated, "realtime_session_invalid", "realtime session is invalid")
 	}
 
 	now := m.now()
@@ -74,13 +74,13 @@ func (m *SessionManager) Consume(ticket string) (*identity.Context, error) {
 
 	record, ok := m.sessions[trimmed]
 	if !ok {
-		return nil, httpx.NewError(401, "realtime_session_invalid", "realtime session is invalid")
+		return nil, apperr.New(apperr.KindUnauthenticated, "realtime_session_invalid", "realtime session is invalid")
 	}
 
 	delete(m.sessions, trimmed)
 
 	if !now.Before(record.ExpiresAt) {
-		return nil, httpx.NewError(401, "realtime_session_expired", "realtime session has expired")
+		return nil, apperr.New(apperr.KindUnauthenticated, "realtime_session_expired", "realtime session has expired")
 	}
 
 	authCtx := record.AuthContext

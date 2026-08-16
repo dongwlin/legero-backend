@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/infra/httpx"
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -44,13 +44,13 @@ func (s *order) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]model.
 // List returns a paginated list of orders for a workspace.
 func (s *order) List(ctx context.Context, actor model.Actor, query model.ListOrdersQuery) (*model.ListOrdersResult, error) {
 	if !query.Status.Valid() {
-		return nil, httpx.ValidationError("status must be one of uncompleted, completed, all")
+		return nil, apperr.ValidationError("status must be one of uncompleted, completed, all")
 	}
 
 	orderRepo := repo.NewOrder(s.db)
 	items, nextCursor, err := orderRepo.List(ctx, actor.WorkspaceID, query)
 	if err != nil {
-		return nil, httpx.InternalError("failed to list orders", err)
+		return nil, apperr.InternalError("failed to list orders", err)
 	}
 
 	return &model.ListOrdersResult{
@@ -62,7 +62,7 @@ func (s *order) List(ctx context.Context, actor model.Actor, query model.ListOrd
 // CreateBatch creates multiple orders in a single transaction, allocating display numbers atomically.
 func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.CreateOrdersInput) ([]model.Order, error) {
 	if input.Quantity <= 0 {
-		return nil, httpx.ValidationError("quantity must be greater than 0")
+		return nil, apperr.ValidationError("quantity must be greater than 0")
 	}
 
 	form, err := input.Form.Normalize()
@@ -117,7 +117,7 @@ func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.
 		orderRepo := repo.NewOrder(tx)
 		return orderRepo.InsertMany(ctx, items)
 	}); err != nil {
-		return nil, httpx.InternalError("failed to create orders", err)
+		return nil, apperr.InternalError("failed to create orders", err)
 	}
 
 	s.publishUpserts(items)
@@ -141,7 +141,7 @@ func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.
 			return err
 		}
 		if current == nil {
-			return httpx.NotFoundError("order_not_found", "order not found")
+			return apperr.NotFoundError("order_not_found", "order not found")
 		}
 		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
@@ -189,7 +189,7 @@ func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.
 // ToggleStep toggles the completion state of a cooking step ("staple" or "meat").
 func (s *order) ToggleStep(ctx context.Context, actor model.Actor, orderID uuid.UUID, input model.ToggleStepInput) (*model.Order, error) {
 	if input.Step != "staple" && input.Step != "meat" {
-		return nil, httpx.ValidationError("step must be one of staple or meat")
+		return nil, apperr.ValidationError("step must be one of staple or meat")
 	}
 
 	now := time.Now()
@@ -203,7 +203,7 @@ func (s *order) ToggleStep(ctx context.Context, actor model.Actor, orderID uuid.
 			return err
 		}
 		if current == nil {
-			return httpx.NotFoundError("order_not_found", "order not found")
+			return apperr.NotFoundError("order_not_found", "order not found")
 		}
 		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
@@ -241,13 +241,13 @@ func (s *order) ToggleServed(ctx context.Context, actor model.Actor, orderID uui
 			return err
 		}
 		if current == nil {
-			return httpx.NotFoundError("order_not_found", "order not found")
+			return apperr.NotFoundError("order_not_found", "order not found")
 		}
 		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 		if !current.CanServe() {
-			return httpx.ValidationError("order cannot be served until required steps are completed")
+			return apperr.ValidationError("order cannot be served until required steps are completed")
 		}
 
 		updated = current.ToggleServed(now)
@@ -271,7 +271,7 @@ func (s *order) Remove(ctx context.Context, actor model.Actor, orderID uuid.UUID
 			return err
 		}
 		if !removed {
-			return httpx.NotFoundError("order_not_found", "order not found")
+			return apperr.NotFoundError("order_not_found", "order not found")
 		}
 		return nil
 	}); err != nil {
@@ -287,13 +287,13 @@ func (s *order) Remove(ctx context.Context, actor model.Actor, orderID uuid.UUID
 // ClearWorkspace deletes orders from a workspace, optionally filtering by date.
 func (s *order) ClearWorkspace(ctx context.Context, actor model.Actor, confirm bool, mode model.ClearWorkspaceMode) (int, error) {
 	if !actor.Role.CanClear() {
-		return 0, httpx.ForbiddenError("only owner can clear workspace orders")
+		return 0, apperr.ForbiddenError("only owner can clear workspace orders")
 	}
 	if !confirm {
-		return 0, httpx.ValidationError("confirm must be true")
+		return 0, apperr.ValidationError("confirm must be true")
 	}
 	if !mode.Valid() {
-		return 0, httpx.ValidationError("mode must be one of all, before_today")
+		return 0, apperr.ValidationError("mode must be one of all, before_today")
 	}
 
 	resolvedMode := mode.Normalize()
@@ -312,7 +312,7 @@ func (s *order) ClearWorkspace(ctx context.Context, actor model.Actor, confirm b
 		cleared = count
 		return nil
 	}); err != nil {
-		return 0, httpx.InternalError("failed to clear workspace orders", err)
+		return 0, apperr.InternalError("failed to clear workspace orders", err)
 	}
 
 	return cleared, nil
@@ -365,7 +365,7 @@ func checkExpectedUpdatedAt(current model.Order, expected *time.Time) error {
 		return nil
 	}
 	if !current.UpdatedAt.Equal(*expected) {
-		return httpx.ConflictError("order_conflict", "order has been modified by another request")
+		return apperr.ConflictError("order_conflict", "order has been modified by another request")
 	}
 	return nil
 }
@@ -401,9 +401,9 @@ func (s *order) publishUpserts(items []model.Order) {
 
 // wrapError passes through AppError instances and wraps everything else as InternalError.
 func wrapError(message string, err error) error {
-	var appErr *httpx.AppError
+	var appErr *apperr.AppError
 	if errors.As(err, &appErr) {
 		return err
 	}
-	return httpx.InternalError(message, err)
+	return apperr.InternalError(message, err)
 }
