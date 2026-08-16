@@ -245,6 +245,11 @@ func createTestWorkspaceMember(t *testing.T, ctx context.Context, db bun.IDB, us
 type stubAccessLoader struct {
 	primary *domain.Access
 	access  *domain.Access
+
+	// handles records the database handle the seam was bound to on each
+	// factory invocation, in call order (the root DB for Login/Bootstrap, the
+	// transaction for Refresh).
+	handles []bun.IDB
 }
 
 func (l *stubAccessLoader) GetPrimaryAccess(_ context.Context, _ uuid.UUID) (*domain.Access, error) {
@@ -256,8 +261,14 @@ func (l *stubAccessLoader) GetAccess(_ context.Context, _, _ uuid.UUID) (*domain
 }
 
 // stubAccessLoaderFactory wraps a stub so it can be passed to newTestServiceFull.
+// It records the database handle each invocation is bound to on the stub, so
+// tests can assert which handle (root DB vs. transaction) a loader was built
+// from.
 func stubAccessLoaderFactory(loader *stubAccessLoader) func(bun.IDB) service.WorkspaceAccessLoader {
-	return func(bun.IDB) service.WorkspaceAccessLoader { return loader }
+	return func(db bun.IDB) service.WorkspaceAccessLoader {
+		loader.handles = append(loader.handles, db)
+		return loader
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -740,4 +751,16 @@ func TestRefresh_DegradedRole_FailsClosed(t *testing.T) {
 	err = testDB.NewRaw("SELECT rotated_at IS NOT NULL FROM refresh_tokens WHERE user_id = ? LIMIT 1", userID).Scan(ctx, &rotated)
 	require.NoError(t, err)
 	require.False(t, rotated)
+
+	// The workspace-access seam must stay transaction-scoped: Login resolves
+	// through the root DB, but Refresh must resolve through the same
+	// transaction that locked and rotated the refresh token. Without this, a
+	// regression to s.newAccessLoader(s.db) in Refresh would silently lose the
+	// transaction binding while every regression test still passed.
+	require.Len(t, accesses.handles, 2)
+	rootDB, ok := accesses.handles[0].(*bun.DB)
+	require.True(t, ok, "login should bind the access loader to the root database")
+	require.Same(t, testDB, rootDB)
+	_, ok = accesses.handles[1].(bun.Tx)
+	require.True(t, ok, "refresh must bind the access loader to the transaction, not the root database")
 }
