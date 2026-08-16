@@ -14,7 +14,7 @@ type Order struct {
 	ID                   uuid.UUID  `bun:",pk,type:uuid"`
 	WorkspaceID          uuid.UUID  `bun:"workspace_id,type:uuid,notnull"`
 	DisplayNo            string     `bun:"display_no,notnull"`
-	Version              int64      `bun:"version,notnull"`
+	Version              int64      `bun:"version,notnull,default:1"`
 	StapleTypeCode       *int16     `bun:"staple_type_code"`
 	SizeCode             int16      `bun:"size_code,notnull"`
 	CustomSizePriceCents *int       `bun:"custom_size_price_cents"`

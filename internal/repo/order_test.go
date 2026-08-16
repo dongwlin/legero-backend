@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -706,6 +707,62 @@ func TestUpdate_ExpectedVersionSuccess(t *testing.T) {
 	require.NotNil(t, got)
 	require.Equal(t, int64(2), got.Version)
 	require.Equal(t, "conditional update applied", got.Note)
+}
+
+// TestUpdate_ConcurrentConditionalWriters verifies that writers racing with
+// the same expected version cannot both win: the DB-side conditional UPDATE
+// guarantees exactly one advances the version and every other writer is
+// rejected with ErrOrderConflict. Unlike the per-transaction tests, this one
+// uses the pool directly because true concurrency needs more than one
+// connection.
+func TestUpdate_ConcurrentConditionalWriters(t *testing.T) {
+	ctx := context.Background()
+	orderRepo := NewOrder(testDB)
+
+	wsID := createTestWorkspace(t, ctx, testDB)
+	userID := createTestUser(t, ctx, testDB)
+
+	for round := 0; round < 10; round++ {
+		order := createTestOrder(t, ctx, testDB, wsID, userID, func(o *domain.Order) {
+			o.DisplayNo = fmt.Sprintf("RACE-%03d", round)
+		})
+		t.Cleanup(func() {
+			_, _ = orderRepo.Delete(ctx, wsID, order.ID)
+		})
+
+		expected := int64(1)
+		const writers = 5
+		start := make(chan struct{})
+		errs := make([]error, writers)
+		var wg sync.WaitGroup
+		for i := 0; i < writers; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				candidate := order
+				candidate.Note = fmt.Sprintf("writer-%d", i)
+				<-start
+				errs[i] = orderRepo.Update(ctx, &candidate, &expected)
+			}(i)
+		}
+		close(start)
+		wg.Wait()
+
+		successes := 0
+		for _, err := range errs {
+			if err == nil {
+				successes++
+				continue
+			}
+			require.ErrorIs(t, err, domain.ErrOrderConflict)
+		}
+		require.Equal(t, 1, successes, "exactly one writer must win the conditional update")
+
+		got, err := orderRepo.GetByID(ctx, wsID, order.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, int64(2), got.Version)
+	}
 }
 
 // ---------------------------------------------------------------------------

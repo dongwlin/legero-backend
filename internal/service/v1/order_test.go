@@ -86,7 +86,7 @@ func TestUpdateForm_AdvancesVersion(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004001" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 	created := createTestOrder(t, ctx, testDB, wsID, userID)
@@ -114,7 +114,7 @@ func TestUpdateForm_ExpectedVersionConflict(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004002" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 	created := createTestOrder(t, ctx, testDB, wsID, userID)
@@ -150,7 +150,7 @@ func TestUpdateForm_ExpectedVersionSuccess(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004003" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 	created := createTestOrder(t, ctx, testDB, wsID, userID)
@@ -173,7 +173,7 @@ func TestUpdateForm_LegacyExpectedUpdatedAt(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004004" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 	created := createTestOrder(t, ctx, testDB, wsID, userID)
@@ -211,7 +211,7 @@ func TestCreateBatch_StartsVersionAtOne(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004005" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
@@ -236,7 +236,7 @@ func TestToggleStep_AdvancesVersion(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004006" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
@@ -269,7 +269,7 @@ func TestToggleStep_NoopDoesNotAdvance(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004007" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 
@@ -298,7 +298,7 @@ func TestToggleServed_AdvancesVersion(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
 
-	userID := createTestUser(t, ctx, testDB, func(u *domain.User) { u.Phone = "13800004008" })
+	userID := createTestUser(t, ctx, testDB)
 	wsID := createTestWorkspace(t, ctx, testDB)
 	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
 

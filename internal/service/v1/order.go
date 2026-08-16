@@ -372,6 +372,11 @@ func orderBusinessDate(now time.Time, location *time.Location) time.Time {
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 }
 
+// orderConflictError reports an optimistic-concurrency conflict on an order.
+func orderConflictError() *apperr.AppError {
+	return apperr.ConflictError("order_conflict", "order has been modified by another request")
+}
+
 // checkExpectedVersion enforces optimistic concurrency on order updates using
 // the monotonic version. A provided expected version must equal the current
 // version, otherwise the order was modified concurrently.
@@ -380,7 +385,7 @@ func checkExpectedVersion(current domain.Order, expected *int64) error {
 		return nil
 	}
 	if current.Version != *expected {
-		return apperr.ConflictError("order_conflict", "order has been modified by another request")
+		return orderConflictError()
 	}
 	return nil
 }
@@ -391,7 +396,7 @@ func checkExpectedUpdatedAt(current domain.Order, expected *time.Time) error {
 		return nil
 	}
 	if !current.UpdatedAt.Equal(*expected) {
-		return apperr.ConflictError("order_conflict", "order has been modified by another request")
+		return orderConflictError()
 	}
 	return nil
 }

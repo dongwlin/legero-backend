@@ -171,6 +171,7 @@ type ToggleStepInput struct {
 }
 
 // ToggleServedInput carries the payload for toggling the served state.
+// ExpectedVersion takes precedence over the legacy ExpectedUpdatedAt.
 type ToggleServedInput struct {
 	ExpectedVersion   *int64     `json:"expectedVersion"`
 	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt"`
