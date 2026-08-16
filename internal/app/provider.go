@@ -57,7 +57,9 @@ var UserCreatorProviderSet = wire.NewSet(
 	NewUserCreator,
 )
 
-// ProvideLogger initializes the global zerolog logger.
+// ProvideLogger supplies the router's zerolog logger. It re-runs logger.New(),
+// which also (re)initializes the global log.Logger; the entrypoint already
+// initialized it before any command runs, so this is idempotent in practice.
 func ProvideLogger() zerolog.Logger {
 	return logger.New()
 }

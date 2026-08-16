@@ -31,7 +31,7 @@
 
 ## Logging
 
-* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized by `internal/infra/logger.New()` in `internal/app.ProvideLogger`.
+* Use `zerolog` with structured fields (`log.Info().Str("addr", ...).Msg(...)`); the global logger is initialized first thing in `cmd.Execute()` via `internal/infra/logger.New()`, so config loading, migrations, and every CLI command log through the configured ConsoleWriter. `internal/app.ProvideLogger` then supplies the router's logger (re-running `logger.New()` idempotently).
 
 ## Configuration
 
