@@ -14,6 +14,11 @@ const (
 	RoleStaff Role = "staff"
 )
 
+// Valid reports whether r is one of the supported roles.
+func (r Role) Valid() bool {
+	return r == RoleOwner || r == RoleStaff
+}
+
 // Workspace is the domain model for a restaurant workspace.
 type Workspace struct {
 	ID        uuid.UUID
