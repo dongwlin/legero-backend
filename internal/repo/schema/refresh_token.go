@@ -16,6 +16,7 @@ type RefreshToken struct {
 	WorkspaceID  uuid.UUID  `bun:"workspace_id,type:uuid,notnull"`
 	TokenHash    string     `bun:"token_hash,notnull"`
 	ExpiresAt    time.Time  `bun:"expires_at,notnull"`
+	Version      int64      `bun:"version,notnull,default:1"`
 	CreatedAt    time.Time  `bun:"created_at,notnull"`
 	RotatedAt    *time.Time `bun:"rotated_at"`
 	RevokedAt    *time.Time `bun:"revoked_at"`

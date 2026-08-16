@@ -277,6 +277,7 @@ func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *domain.Ac
 			WorkspaceID: access.WorkspaceID,
 			TokenHash:   crypto.HashToken(refreshToken),
 			ExpiresAt:   refreshExpiresAt,
+			Version:     1,
 			CreatedAt:   now,
 		}, nil
 }

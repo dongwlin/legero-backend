@@ -13,6 +13,7 @@ type RefreshToken struct {
 	WorkspaceID  uuid.UUID
 	TokenHash    string
 	ExpiresAt    time.Time
+	Version      int64
 	CreatedAt    time.Time
 	RotatedAt    *time.Time
 	RevokedAt    *time.Time
@@ -28,6 +29,9 @@ type TokenPair struct {
 }
 
 // AuthUser is the minimal user representation returned in auth responses.
+// The entity carries a monotonic Version (see migration 000003), but it is
+// intentionally not exposed here: no user update endpoint exists yet, so
+// there is no client consumer for it.
 type AuthUser struct {
 	ID    uuid.UUID
 	Phone string
@@ -35,6 +39,8 @@ type AuthUser struct {
 }
 
 // WorkspaceInfo is the minimal workspace representation returned in auth responses.
+// The workspace entity carries a monotonic Version (see migration 000003),
+// intentionally not exposed for the same reason as AuthUser above.
 type WorkspaceInfo struct {
 	ID   uuid.UUID
 	Name string

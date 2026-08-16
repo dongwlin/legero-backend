@@ -87,6 +87,7 @@ func (s *order) CreateBatch(ctx context.Context, actor domain.Actor, input domai
 				ID:                   uuid.New(),
 				WorkspaceID:          actor.WorkspaceID,
 				DisplayNo:            buildDisplayNo(bizDate, startSeq+idx),
+				Version:              1,
 				StapleTypeCode:       form.StapleTypeCode,
 				SizeCode:             form.SizeCode,
 				CustomSizePriceCents: form.CustomSizePriceCents,
@@ -143,7 +144,11 @@ func (s *order) UpdateForm(ctx context.Context, actor domain.Actor, orderID uuid
 		if current == nil {
 			return apperr.NotFoundError("order_not_found", "order not found")
 		}
-		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
+		if input.ExpectedVersion != nil {
+			if err := checkExpectedVersion(*current, input.ExpectedVersion); err != nil {
+				return err
+			}
+		} else if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 
@@ -177,9 +182,9 @@ func (s *order) UpdateForm(ctx context.Context, actor domain.Actor, orderID uuid
 			CompletedAt:          completedAt,
 		}
 
-		return orderRepo.Update(ctx, &updated)
+		return orderRepo.Update(ctx, &updated, input.ExpectedVersion)
 	}); err != nil {
-		return nil, wrapError("failed to update order", err)
+		return nil, wrapOrderMutationError("failed to update order", err)
 	}
 
 	s.publishUpserts([]domain.Order{updated})
@@ -205,7 +210,11 @@ func (s *order) ToggleStep(ctx context.Context, actor domain.Actor, orderID uuid
 		if current == nil {
 			return apperr.NotFoundError("order_not_found", "order not found")
 		}
-		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
+		if input.ExpectedVersion != nil {
+			if err := checkExpectedVersion(*current, input.ExpectedVersion); err != nil {
+				return err
+			}
+		} else if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 
@@ -218,9 +227,9 @@ func (s *order) ToggleStep(ctx context.Context, actor domain.Actor, orderID uuid
 		changed = true
 		updated.UpdatedBy = actor.UserID
 		updated.UpdatedAt = now
-		return orderRepo.Update(ctx, &updated)
+		return orderRepo.Update(ctx, &updated, input.ExpectedVersion)
 	}); err != nil {
-		return nil, wrapError("failed to toggle order step", err)
+		return nil, wrapOrderMutationError("failed to toggle order step", err)
 	}
 
 	if changed {
@@ -243,7 +252,11 @@ func (s *order) ToggleServed(ctx context.Context, actor domain.Actor, orderID uu
 		if current == nil {
 			return apperr.NotFoundError("order_not_found", "order not found")
 		}
-		if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
+		if input.ExpectedVersion != nil {
+			if err := checkExpectedVersion(*current, input.ExpectedVersion); err != nil {
+				return err
+			}
+		} else if err := checkExpectedUpdatedAt(*current, input.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 		if !current.CanServe() {
@@ -253,9 +266,9 @@ func (s *order) ToggleServed(ctx context.Context, actor domain.Actor, orderID uu
 		updated = current.ToggleServed(now)
 		updated.UpdatedBy = actor.UserID
 		updated.UpdatedAt = now
-		return orderRepo.Update(ctx, &updated)
+		return orderRepo.Update(ctx, &updated, input.ExpectedVersion)
 	}); err != nil {
-		return nil, wrapError("failed to toggle served status", err)
+		return nil, wrapOrderMutationError("failed to toggle served status", err)
 	}
 
 	s.publishUpserts([]domain.Order{updated})
@@ -359,13 +372,36 @@ func orderBusinessDate(now time.Time, location *time.Location) time.Time {
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 }
 
-// checkExpectedUpdatedAt enforces optimistic concurrency on order updates.
+// orderConflictError reports an optimistic-concurrency conflict on an order.
+func orderConflictError() *apperr.AppError {
+	return apperr.ConflictError("order_conflict", "order has been modified by another request")
+}
+
+// checkExpectedVersion enforces optimistic concurrency on order updates using
+// the monotonic version. A provided expected version must equal the current
+// version, otherwise the order was modified concurrently.
+func checkExpectedVersion(current domain.Order, expected *int64) error {
+	if expected == nil {
+		return nil
+	}
+	if current.Version != *expected {
+		return orderConflictError()
+	}
+	return nil
+}
+
+// checkExpectedUpdatedAt enforces optimistic concurrency on order updates
+// using the deprecated expectedUpdatedAt token. The token is compared at the
+// precision the API actually exposes: OrderDTO.UpdatedAt is formatted with
+// time.RFC3339, which has no fractional seconds, so both sides are truncated
+// to the second before comparing. Sub-second concurrent writes are handled by
+// the monotonic version (expectedVersion) instead of this fallback.
 func checkExpectedUpdatedAt(current domain.Order, expected *time.Time) error {
 	if expected == nil {
 		return nil
 	}
-	if !current.UpdatedAt.Equal(*expected) {
-		return apperr.ConflictError("order_conflict", "order has been modified by another request")
+	if !current.UpdatedAt.Truncate(time.Second).Equal(expected.Truncate(time.Second)) {
+		return orderConflictError()
 	}
 	return nil
 }
@@ -406,4 +442,13 @@ func wrapError(message string, err error) error {
 		return err
 	}
 	return apperr.InternalError(message, err)
+}
+
+// wrapOrderMutationError translates order-concurrency sentinels into conflict
+// errors before falling back to wrapError.
+func wrapOrderMutationError(message string, err error) error {
+	if errors.Is(err, domain.ErrOrderConflict) {
+		return orderConflictError()
+	}
+	return wrapError(message, err)
 }

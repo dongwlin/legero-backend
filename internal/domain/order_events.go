@@ -37,6 +37,7 @@ type ClearedEvent struct {
 // OrderDTO is the JSON-friendly representation of an Order for API responses and events.
 type OrderDTO struct {
 	ID                   string  `json:"id"`
+	Version              int64   `json:"version"`
 	DisplayNo            string  `json:"displayNo"`
 	StapleTypeCode       *int16  `json:"stapleTypeCode"`
 	SizeCode             int16   `json:"sizeCode"`
@@ -65,6 +66,7 @@ type OrderDTO struct {
 func (o Order) ToDTO(location *time.Location) OrderDTO {
 	dto := OrderDTO{
 		ID:                   o.ID.String(),
+		Version:              o.Version,
 		DisplayNo:            o.DisplayNo,
 		StapleTypeCode:       o.StapleTypeCode,
 		SizeCode:             o.SizeCode,
