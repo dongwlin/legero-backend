@@ -18,6 +18,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/logger"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
+	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 	servicev1 "github.com/dongwlin/legero-backend/internal/service/v1"
 	"github.com/dongwlin/legero-backend/migrations"
@@ -139,7 +140,16 @@ func ProvideAuth(
 	ttl TokenTTL,
 	keyBytes []byte,
 ) (service.Auth, error) {
-	return servicev1.NewAuth(db, orders, hasher, location, ttl.Access, ttl.Refresh, keyBytes)
+	return servicev1.NewAuth(
+		db,
+		func(db bun.IDB) service.WorkspaceAccessLoader { return repo.NewWorkspace(db) },
+		orders,
+		hasher,
+		location,
+		ttl.Access,
+		ttl.Refresh,
+		keyBytes,
+	)
 }
 
 // ProvideTimezone exposes the business timezone name for services.

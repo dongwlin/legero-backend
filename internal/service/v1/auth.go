@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,18 +21,23 @@ import (
 
 // auth implements service.Auth.
 type auth struct {
-	db         *bun.DB
-	orders     service.ActiveOrderLoader
-	hasher     *crypto.PasswordHasher
-	location   *time.Location
-	accessTTL  time.Duration
-	refreshTTL time.Duration
-	key        paseto.V4SymmetricKey
+	db              *bun.DB
+	newAccessLoader func(bun.IDB) service.WorkspaceAccessLoader
+	orders          service.ActiveOrderLoader
+	hasher          *crypto.PasswordHasher
+	location        *time.Location
+	accessTTL       time.Duration
+	refreshTTL      time.Duration
+	key             paseto.V4SymmetricKey
 }
 
-// NewAuth creates a new Auth service.
+// NewAuth creates a new Auth service. newAccessLoader builds a workspace-access
+// loader bound to the given database handle (the main DB at the top level, a
+// transaction inside Refresh), so Auth can be wired against a stub loader in
+// tests without touching the database schema.
 func NewAuth(
 	db *bun.DB,
+	newAccessLoader func(bun.IDB) service.WorkspaceAccessLoader,
 	orders service.ActiveOrderLoader,
 	hasher *crypto.PasswordHasher,
 	location *time.Location,
@@ -39,19 +45,24 @@ func NewAuth(
 	refreshTTL time.Duration,
 	keyBytes []byte,
 ) (service.Auth, error) {
+	if newAccessLoader == nil {
+		return nil, errors.New("workspace access loader factory is required")
+	}
+
 	key, err := paseto.V4SymmetricKeyFromBytes(keyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("create paseto symmetric key: %w", err)
 	}
 
 	return &auth{
-		db:         db,
-		orders:     orders,
-		hasher:     hasher,
-		location:   location,
-		accessTTL:  accessTTL,
-		refreshTTL: refreshTTL,
-		key:        key,
+		db:              db,
+		newAccessLoader: newAccessLoader,
+		orders:          orders,
+		hasher:          hasher,
+		location:        location,
+		accessTTL:       accessTTL,
+		refreshTTL:      refreshTTL,
+		key:             key,
 	}, nil
 }
 
@@ -79,8 +90,7 @@ func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*domain.Log
 		return nil, apperr.New(apperr.KindUnauthenticated, "invalid_credentials", "invalid phone or password")
 	}
 
-	wsRepo := repo.NewWorkspace(s.db)
-	access, err := wsRepo.GetPrimaryAccess(ctx, user.ID)
+	access, err := s.newAccessLoader(s.db).GetPrimaryAccess(ctx, user.ID)
 	if err != nil {
 		return nil, apperr.InternalError("failed to resolve workspace access", err)
 	}
@@ -142,7 +152,6 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*domain.Tok
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		txRefreshRepo := repo.NewRefreshToken(tx)
-		txWsRepo := repo.NewWorkspace(tx)
 
 		stored, err := txRefreshRepo.GetByHash(ctx, crypto.HashToken(rawRefreshToken), true)
 		if err != nil {
@@ -158,7 +167,7 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*domain.Tok
 			return apperr.New(apperr.KindUnauthenticated, "refresh_token_expired", "refresh token has expired")
 		}
 
-		access, err := txWsRepo.GetAccess(ctx, claims.UserID, claims.WorkspaceID)
+		access, err := s.newAccessLoader(tx).GetAccess(ctx, claims.UserID, claims.WorkspaceID)
 		if err != nil {
 			return err
 		}
@@ -202,8 +211,7 @@ func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*domai
 		return nil, apperr.UnauthorizedError("user is inactive")
 	}
 
-	wsRepo := repo.NewWorkspace(s.db)
-	access, err := wsRepo.GetAccess(ctx, authCtx.UserID, authCtx.WorkspaceID)
+	access, err := s.newAccessLoader(s.db).GetAccess(ctx, authCtx.UserID, authCtx.WorkspaceID)
 	if err != nil {
 		return nil, apperr.InternalError("failed to resolve workspace access", err)
 	}
