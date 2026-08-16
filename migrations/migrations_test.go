@@ -35,18 +35,21 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatalf("failed to start container: %v", err)
 	}
-	defer func() {
-		if err := pgContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate postgres container: %v", err)
-		}
-	}()
 
 	host, _ := pgContainer.Host(ctx)
 	port, _ := pgContainer.MappedPort(ctx, "5432")
 	dsn = fmt.Sprintf("postgres://postgres:postgres@%s:%s/testdb?sslmode=disable&timezone=UTC",
 		host, port.Port())
 
-	os.Exit(m.Run())
+	// os.Exit does not run deferred calls, so the container must be terminated
+	// explicitly before exiting.
+	code := m.Run()
+
+	if err := pgContainer.Terminate(ctx); err != nil {
+		log.Printf("failed to terminate postgres container: %v", err)
+	}
+
+	os.Exit(code)
 }
 
 // migrateInstance is a fresh migrate instance over the embedded SQL files.
