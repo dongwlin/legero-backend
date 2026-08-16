@@ -60,6 +60,101 @@ func TestInsertMany_SingleOrder(t *testing.T) {
 	require.Equal(t, "T100", got.DisplayNo)
 }
 
+// TestOrderRepo_RoundTripAllFields exercises the full domain -> schema
+// (toSchemaOrder) and schema -> domain (toDomainOrder) field mapping by
+// inserting a domain order with every field set to a distinct non-zero value
+// and reading it back. Fixed time.Date values avoid monotonic-clock and
+// DB-precision noise.
+func TestOrderRepo_RoundTripAllFields(t *testing.T) {
+	ctx := context.Background()
+	tx, repo := newTestOrderRepo(t, ctx)
+
+	wsID := createTestWorkspace(t, ctx, tx)
+	userID := createTestUser(t, ctx, tx)
+
+	stapleTypeCode := domain.StapleTypeRiceSheet
+	customSizePriceCents := 1500
+	packagingCode := domain.PackagingContainer
+	packagingMethodCode := domain.PackagingMethodTogether
+	createdAt := time.Date(2025, 6, 1, 12, 30, 0, 0, time.UTC)
+	updatedAt := time.Date(2025, 6, 1, 12, 45, 0, 0, time.UTC)
+	completedAt := time.Date(2025, 6, 1, 13, 0, 0, 0, time.UTC)
+
+	want := domain.Order{
+		ID:                   uuid.New(),
+		WorkspaceID:          wsID,
+		DisplayNo:            "RT-001",
+		StapleTypeCode:       &stapleTypeCode,
+		SizeCode:             domain.SizeCustom,
+		CustomSizePriceCents: &customSizePriceCents,
+		StapleAmountCode:     domain.AdjustmentMore,
+		ExtraStapleUnits:     2,
+		FriedEggCount:        1,
+		TofuSkewerCount:      3,
+		SelectedMeatCodes:    []int16{domain.MeatLeanPork, domain.MeatLiver, domain.MeatBloodCurd},
+		GreensCode:           domain.AdjustmentLess,
+		ScallionCode:         domain.AdjustmentNone,
+		PepperCode:           domain.AdjustmentNormal,
+		DiningMethodCode:     domain.DiningMethodTakeout,
+		PackagingCode:        &packagingCode,
+		PackagingMethodCode:  &packagingMethodCode,
+		TotalPriceCents:      2888,
+		StapleStepStatusCode: domain.StepStatusCompleted,
+		MeatStepStatusCode:   domain.StepStatusNotStarted,
+		Note:                 "round-trip test note",
+		CreatedBy:            userID,
+		UpdatedBy:            userID,
+		CreatedAt:            createdAt,
+		UpdatedAt:            updatedAt,
+		CompletedAt:          &completedAt,
+	}
+
+	// domain -> schema
+	require.NoError(t, repo.InsertMany(ctx, []domain.Order{want}))
+
+	// schema -> domain
+	got, err := repo.GetByID(ctx, wsID, want.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+
+	// Identity and FKs.
+	require.Equal(t, want.ID, got.ID)
+	require.Equal(t, want.WorkspaceID, got.WorkspaceID)
+	require.Equal(t, want.DisplayNo, got.DisplayNo)
+	require.Equal(t, want.CreatedBy, got.CreatedBy)
+	require.Equal(t, want.UpdatedBy, got.UpdatedBy)
+
+	// Form fields.
+	require.Equal(t, want.StapleTypeCode, got.StapleTypeCode)
+	require.Equal(t, want.SizeCode, got.SizeCode)
+	require.Equal(t, want.CustomSizePriceCents, got.CustomSizePriceCents)
+	require.Equal(t, want.StapleAmountCode, got.StapleAmountCode)
+	require.Equal(t, want.ExtraStapleUnits, got.ExtraStapleUnits)
+	require.Equal(t, want.FriedEggCount, got.FriedEggCount)
+	require.Equal(t, want.TofuSkewerCount, got.TofuSkewerCount)
+	require.Equal(t, want.SelectedMeatCodes, got.SelectedMeatCodes)
+	require.Equal(t, want.GreensCode, got.GreensCode)
+	require.Equal(t, want.ScallionCode, got.ScallionCode)
+	require.Equal(t, want.PepperCode, got.PepperCode)
+	require.Equal(t, want.DiningMethodCode, got.DiningMethodCode)
+	require.Equal(t, want.PackagingCode, got.PackagingCode)
+	require.Equal(t, want.PackagingMethodCode, got.PackagingMethodCode)
+	require.Equal(t, want.Note, got.Note)
+
+	// Pricing and step statuses.
+	require.Equal(t, want.TotalPriceCents, got.TotalPriceCents)
+	require.Equal(t, want.StapleStepStatusCode, got.StapleStepStatusCode)
+	require.Equal(t, want.MeatStepStatusCode, got.MeatStepStatusCode)
+
+	// Timestamps: compare instants with fixed UTC values (pgx returns
+	// timestamptz in the local location, so location-aware equality would
+	// flake on the host timezone).
+	require.True(t, want.CreatedAt.Equal(got.CreatedAt))
+	require.True(t, want.UpdatedAt.Equal(got.UpdatedAt))
+	require.NotNil(t, got.CompletedAt)
+	require.True(t, want.CompletedAt.Equal(*got.CompletedAt))
+}
+
 func TestInsertMany_MultipleOrders(t *testing.T) {
 	ctx := context.Background()
 	tx, repo := newTestOrderRepo(t, ctx)
