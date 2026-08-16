@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"aidanwoods.dev/go-paseto"
+
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
@@ -460,4 +462,68 @@ func TestBootstrap_NoWorkspace(t *testing.T) {
 	var appErr *apperr.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, apperr.KindNotFound, appErr.Kind)
+}
+
+// ---------------------------------------------------------------------------
+// AuthService.parseToken role claim validation
+// ---------------------------------------------------------------------------
+
+// buildTestToken encrypts a PASETO access token with the given role claim.
+// When setRole is false, the role claim is omitted entirely.
+func buildTestToken(t *testing.T, s *auth, role string, setRole bool) string {
+	t.Helper()
+
+	now := time.Now()
+	token := paseto.NewToken()
+	token.SetIssuedAt(now)
+	token.SetNotBefore(now)
+	token.SetExpiration(now.Add(time.Hour))
+	token.SetSubject(uuid.New().String())
+	token.SetJti(uuid.New().String())
+	token.SetString("wid", uuid.New().String())
+	if setRole {
+		token.SetString("role", role)
+	}
+	token.SetString("typ", "access")
+
+	return token.V4Encrypt(s.key, nil)
+}
+
+func TestParseToken_RejectsInvalidRole(t *testing.T) {
+	svc := newTestService(t, testDB)
+	s := svc.(*auth)
+
+	tests := []struct {
+		name    string
+		role    string
+		setRole bool
+	}{
+		{name: "unknown role", role: "admin", setRole: true},
+		{name: "empty role", role: "", setRole: true},
+		{name: "missing role", setRole: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := buildTestToken(t, s, tt.role, tt.setRole)
+			_, err := s.parseToken(raw, "access")
+			require.Error(t, err)
+
+			var appErr *apperr.AppError
+			require.True(t, errors.As(err, &appErr))
+			require.Equal(t, apperr.KindUnauthenticated, appErr.Kind)
+		})
+	}
+}
+
+func TestParseToken_ValidRoles(t *testing.T) {
+	svc := newTestService(t, testDB)
+	s := svc.(*auth)
+
+	for _, role := range []domain.Role{domain.RoleOwner, domain.RoleStaff} {
+		raw := buildTestToken(t, s, string(role), true)
+		claims, err := s.parseToken(raw, "access")
+		require.NoError(t, err)
+		require.Equal(t, role, claims.Role)
+	}
 }

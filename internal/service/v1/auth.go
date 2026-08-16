@@ -327,6 +327,10 @@ func (s *auth) parseToken(rawToken, expectedType string) (*domain.TokenClaims, e
 	if err != nil {
 		return nil, apperr.UnauthorizedError("invalid token")
 	}
+	role := domain.Role(roleText)
+	if !role.Valid() {
+		return nil, apperr.UnauthorizedError("invalid token role")
+	}
 	tokenType, err := parsed.GetString("typ")
 	if err != nil {
 		return nil, apperr.UnauthorizedError("invalid token")
@@ -351,7 +355,7 @@ func (s *auth) parseToken(rawToken, expectedType string) (*domain.TokenClaims, e
 	return &domain.TokenClaims{
 		UserID:      userID,
 		WorkspaceID: workspaceID,
-		Role:        domain.Role(roleText),
+		Role:        role,
 		Type:        tokenType,
 		JTI:         jti,
 		ExpiresAt:   expiresAt,
