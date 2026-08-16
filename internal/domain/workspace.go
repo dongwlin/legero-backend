@@ -46,12 +46,16 @@ type Access struct {
 }
 
 // Permissions returns the list of permission strings for the given role.
+// Unknown or invalid roles fail closed and receive no permissions.
 func (r Role) Permissions() []string {
-	permissions := []string{"orders:read", "orders:write"}
-	if r == RoleOwner {
-		permissions = append(permissions, "orders:clear")
+	switch r {
+	case RoleOwner:
+		return []string{"orders:read", "orders:write", "orders:clear"}
+	case RoleStaff:
+		return []string{"orders:read", "orders:write"}
+	default:
+		return nil
 	}
-	return permissions
 }
 
 // CanClear reports whether the given role has permission to clear orders.
