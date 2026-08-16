@@ -66,6 +66,12 @@ Requests flow through the standard layered structure:
 
 Order form values are encoded as smallint codes (`stapleTypeCode`, `selectedMeatCodes`, …), with cooking step statuses `unrequired` | `not-started` | `completed` (`domain.StepStatus*`). An order can be marked served only when all required steps are completed (`Order.CanServe`).
 
+## Version & optimistic concurrency
+
+Every primary entity carries a server-maintained monotonic `version` (bigint, starting at 1). Orders advance it atomically on every successful state-changing mutation (`UPDATE ... SET version = version + 1 RETURNING version`), so commits within the same second remain distinguishable. Users, workspaces, and refresh tokens are seeded at version 1; refresh-token rotation is the only existing mutation path there and also advances it.
+
+`OrderDTO` (and therefore order list/snapshot responses, mutation responses, and realtime `order.upsert` events) exposes `version`. Order mutations accept an optional `expectedVersion`; a mismatch rejects the write with a `409` `order_conflict`. The deprecated `expectedUpdatedAt` token remains supported as a fallback when `expectedVersion` is absent, so existing clients keep working during migration.
+
 ## API Surface
 
 Public:
