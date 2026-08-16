@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -28,7 +28,7 @@ func NewStats(db *bun.DB, timezone string) service.Stats {
 }
 
 // Daily returns per-day order counts and revenue for a workspace within a date range.
-func (s *stats) Daily(ctx context.Context, workspaceID uuid.UUID, from, to time.Time) ([]model.DailyRow, error) {
+func (s *stats) Daily(ctx context.Context, workspaceID uuid.UUID, from, to time.Time) ([]domain.DailyRow, error) {
 	if to.Before(from) {
 		return nil, apperr.ValidationError("to must be greater than or equal to from")
 	}

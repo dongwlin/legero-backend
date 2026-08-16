@@ -1,4 +1,4 @@
-package model
+package schema
 
 import (
 	"time"
@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// WorkspaceDailyCounter tracks a per-workspace daily sequence number.
+// WorkspaceDailyCounter is the bun ORM mapping of the workspace_daily_counters table.
 type WorkspaceDailyCounter struct {
 	bun.BaseModel `bun:"table:workspace_daily_counters,alias:wdc"`
 

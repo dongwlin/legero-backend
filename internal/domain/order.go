@@ -1,10 +1,9 @@
-package model
+package domain
 
 import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 )
 
 // Staple type codes.
@@ -116,36 +115,34 @@ type OrderFormInput struct {
 	Note                 string  `json:"note"`
 }
 
-// Order is the unified domain + ORM model for the orders table.
+// Order is the domain model for a single order.
 type Order struct {
-	bun.BaseModel `bun:"table:orders,alias:o"`
-
-	ID                   uuid.UUID  `bun:",pk,type:uuid"`
-	WorkspaceID          uuid.UUID  `bun:"workspace_id,type:uuid,notnull"`
-	DisplayNo            string     `bun:"display_no,notnull"`
-	StapleTypeCode       *int16     `bun:"staple_type_code"`
-	SizeCode             int16      `bun:"size_code,notnull"`
-	CustomSizePriceCents *int       `bun:"custom_size_price_cents"`
-	StapleAmountCode     int16      `bun:"staple_amount_code,notnull"`
-	ExtraStapleUnits     int16      `bun:"extra_staple_units,notnull"`
-	FriedEggCount        int16      `bun:"fried_egg_count,notnull"`
-	TofuSkewerCount      int16      `bun:"tofu_skewer_count,notnull"`
-	SelectedMeatCodes    []int16    `bun:"selected_meat_codes,array,type:smallint[],notnull"`
-	GreensCode           int16      `bun:"greens_code,notnull"`
-	ScallionCode         int16      `bun:"scallion_code,notnull"`
-	PepperCode           int16      `bun:"pepper_code,notnull"`
-	DiningMethodCode     int16      `bun:"dining_method_code,notnull"`
-	PackagingCode        *int16     `bun:"packaging_code"`
-	PackagingMethodCode  *int16     `bun:"packaging_method_code"`
-	TotalPriceCents      int        `bun:"total_price_cents,notnull"`
-	StapleStepStatusCode int16      `bun:"staple_step_status_code,notnull"`
-	MeatStepStatusCode   int16      `bun:"meat_step_status_code,notnull"`
-	Note                 string     `bun:"note,notnull"`
-	CreatedBy            uuid.UUID  `bun:"created_by,type:uuid,notnull"`
-	UpdatedBy            uuid.UUID  `bun:"updated_by,type:uuid,notnull"`
-	CreatedAt            time.Time  `bun:"created_at,notnull"`
-	UpdatedAt            time.Time  `bun:"updated_at,notnull"`
-	CompletedAt          *time.Time `bun:"completed_at"`
+	ID                   uuid.UUID
+	WorkspaceID          uuid.UUID
+	DisplayNo            string
+	StapleTypeCode       *int16
+	SizeCode             int16
+	CustomSizePriceCents *int
+	StapleAmountCode     int16
+	ExtraStapleUnits     int16
+	FriedEggCount        int16
+	TofuSkewerCount      int16
+	SelectedMeatCodes    []int16
+	GreensCode           int16
+	ScallionCode         int16
+	PepperCode           int16
+	DiningMethodCode     int16
+	PackagingCode        *int16
+	PackagingMethodCode  *int16
+	TotalPriceCents      int
+	StapleStepStatusCode int16
+	MeatStepStatusCode   int16
+	Note                 string
+	CreatedBy            uuid.UUID
+	UpdatedBy            uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	CompletedAt          *time.Time
 }
 
 // ListOrdersQuery carries parameters for listing orders.

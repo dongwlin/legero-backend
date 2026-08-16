@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestUserRepo_GetByPhone_Found(t *testing.T) {
 	ctx := context.Background()
 	tx, repo := newTestUserRepo(t, ctx)
 
-	userID := createTestUser(t, ctx, tx, func(u *model.User) {
+	userID := createTestUser(t, ctx, tx, func(u *domain.User) {
 		u.Phone = "13800138000"
 		u.IsActive = true
 	})
@@ -50,7 +50,7 @@ func TestUserRepo_GetByID_Found(t *testing.T) {
 	ctx := context.Background()
 	tx, repo := newTestUserRepo(t, ctx)
 
-	userID := createTestUser(t, ctx, tx, func(u *model.User) {
+	userID := createTestUser(t, ctx, tx, func(u *domain.User) {
 		u.Phone = "13900139000"
 		u.IsActive = false
 	})
@@ -81,7 +81,7 @@ func TestUserRepo_Insert(t *testing.T) {
 	ctx := context.Background()
 	_, repo := newTestUserRepo(t, ctx)
 
-	user := &model.User{
+	user := &domain.User{
 		ID:           uuid.New(),
 		Phone:        "13800138001",
 		PasswordHash: "hash",

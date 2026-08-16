@@ -5,16 +5,16 @@
 * `main.go` at the repo root is thin: it only calls `cmd.Execute()`.
 * `cmd/` holds cobra commands only; all bootstrap goes through the wire injectors in `internal/app` (`InitializeApplication`, `InitializeUserCreator`), which return a cleanup function for closing resources.
 * `internal/app` is the composition root. Providers live in `internal/app/provider.go`, injectors in `internal/app/wire.go`, and generated code in `internal/app/wire_gen.go` (regenerate with `wire ./internal/app` or `go generate`). Services, handlers, and the router are wired here and nowhere else.
-* Dependencies flow one way: `handler → service → repo`, with `model` shared by all layers; gin middleware lives in `internal/handler/middleware` and only depends on `service`/`infra`. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
+* Dependencies flow one way: `handler → service → repo → domain`; repos use bun-mapped structs from their private `internal/repo/schema` subpackage (which no other package may import) and convert to/from domain types internally. Gin middleware lives in `internal/handler/middleware` and only depends on `service`/`infra`. Never import `handler` from `service`, `service` from `repo`, `repo/schema` from outside `repo`, or `internal/app` from `internal/infra`.
 * Cross-cutting concerns (config, crypto, database, identity, logger, realtime, shutdown, timex) live in `internal/infra` and must not import domain packages; transport-agnostic application errors live in `internal/apperr`, and HTTP response/error rendering helpers live in `internal/handler/httpresp`.
 
 ## Models & Domain Logic
 
-* `internal/model` holds unified domain + ORM models: bun struct tags plus domain methods on the same type (e.g. `Order.CanServe`, `Order.ToggleStep`, `OrderFormInput.InitialStepStatuses`).
-* Encode enumerated option values as smallint codes and expose named constants (`StepStatus*`, `RoleOwner`, `RoleStaff`); validate codes in the model.
-* Domain validation errors are sentinel `errors.New` values grouped in `internal/model/errors.go`.
+* `internal/domain` holds pure domain models (no ORM mapping) plus domain methods on the same type (e.g. `Order.CanServe`, `Order.ToggleStep`, `OrderFormInput.InitialStepStatuses`); bun table mappings live in `internal/repo/schema` and are converted to/from domain inside each repo.
+* Encode enumerated option values as smallint codes and expose named constants (`StepStatus*`, `RoleOwner`, `RoleStaff`); validate codes in the domain.
+* Domain validation errors are sentinel `errors.New` values grouped in `internal/domain/errors.go`.
 * All monetary values are integer cents.
-* Keep pure domain rules testable without a database (see `internal/model/*_test.go`).
+* Keep pure domain rules testable without a database (see `internal/domain/*_test.go`).
 
 ## Errors
 
@@ -22,7 +22,7 @@
 * Use the constructors in `internal/apperr`: `New`/`Wrap` and the helpers `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `InternalError`.
 * Services and infra must not import `internal/handler/httpresp`; `apperr` knows nothing about HTTP. Only handlers map errors to responses.
 * Render errors in handlers with `httpresp.AbortError(c, err)`, which maps `apperr.Kind` to the HTTP status (400/401/403/404/409/500). Non-`AppError` errors become a generic `internal_error` 500, so wrap expected failures explicitly.
-* Translate sentinels from `model/errors.go` into an `AppError` at the service boundary rather than leaking them raw to the API.
+* Translate sentinels from `internal/domain/errors.go` into an `AppError` at the service boundary rather than leaking them raw to the API.
 
 ## Time, Money & Formatting
 

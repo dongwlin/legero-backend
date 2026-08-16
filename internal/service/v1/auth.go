@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -56,8 +56,8 @@ func NewAuth(
 }
 
 // Login authenticates a user by phone and password, issues tokens, and returns bootstrap data.
-func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*model.LoginResult, error) {
-	normalizedPhone := model.NormalizePhone(req.Phone)
+func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*domain.LoginResult, error) {
+	normalizedPhone := domain.NormalizePhone(req.Phone)
 	if normalizedPhone == "" || strings.TrimSpace(req.Password) == "" {
 		return nil, apperr.ValidationError("phone and password are required")
 	}
@@ -106,15 +106,15 @@ func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*model.Logi
 		return nil, apperr.InternalError("failed to persist refresh token", err)
 	}
 
-	return &model.LoginResult{
+	return &domain.LoginResult{
 		TokenPair: tokenPair,
-		Bootstrap: model.BootstrapData{
-			User: model.AuthUser{
+		Bootstrap: domain.BootstrapData{
+			User: domain.AuthUser{
 				ID:    user.ID,
 				Phone: user.Phone,
 				Role:  access.Role,
 			},
-			Workspace: model.WorkspaceInfo{
+			Workspace: domain.WorkspaceInfo{
 				ID:   access.WorkspaceID,
 				Name: access.WorkspaceName,
 			},
@@ -126,14 +126,14 @@ func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*model.Logi
 }
 
 // Refresh validates a refresh token, rotates it, and issues a new token pair.
-func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*model.TokenPair, error) {
+func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*domain.TokenPair, error) {
 	claims, err := s.parseToken(rawRefreshToken, "refresh")
 	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now()
-	var pair model.TokenPair
+	var pair domain.TokenPair
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		txRefreshRepo := repo.NewRefreshToken(tx)
@@ -161,7 +161,7 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*model.Toke
 			return apperr.NotFoundError("workspace_not_found", "workspace not found")
 		}
 
-		var replacementRecord model.RefreshToken
+		var replacementRecord domain.RefreshToken
 		pair, replacementRecord, err = s.issueTokenPair(now, claims.UserID, access)
 		if err != nil {
 			return err
@@ -182,7 +182,7 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*model.Toke
 }
 
 // Bootstrap returns the full bootstrap payload for an already-authenticated user.
-func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*model.BootstrapData, error) {
+func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*domain.BootstrapData, error) {
 	userRepo := repo.NewUser(s.db)
 	user, err := userRepo.GetByID(ctx, authCtx.UserID)
 	if err != nil {
@@ -206,13 +206,13 @@ func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*model
 		return nil, apperr.InternalError("failed to load active orders", err)
 	}
 
-	return &model.BootstrapData{
-		User: model.AuthUser{
+	return &domain.BootstrapData{
+		User: domain.AuthUser{
 			ID:    user.ID,
 			Phone: user.Phone,
 			Role:  access.Role,
 		},
-		Workspace: model.WorkspaceInfo{
+		Workspace: domain.WorkspaceInfo{
 			ID:   access.WorkspaceID,
 			Name: access.WorkspaceName,
 		},
@@ -237,12 +237,12 @@ func (s *auth) RequireAccessToken(_ context.Context, rawToken string) (*identity
 }
 
 // issueTokenPair creates a new access/refresh token pair and the refresh record for persistence.
-func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *model.Access) (model.TokenPair, model.RefreshToken, error) {
+func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *domain.Access) (domain.TokenPair, domain.RefreshToken, error) {
 	accessExpiresAt := now.Add(s.accessTTL)
 	refreshExpiresAt := now.Add(s.refreshTTL)
 	refreshID := uuid.New()
 
-	accessToken, err := s.encryptToken(model.TokenClaims{
+	accessToken, err := s.encryptToken(domain.TokenClaims{
 		UserID:      userID,
 		WorkspaceID: access.WorkspaceID,
 		Role:        access.Role,
@@ -251,10 +251,10 @@ func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *model.Acc
 		ExpiresAt:   accessExpiresAt,
 	}, now)
 	if err != nil {
-		return model.TokenPair{}, model.RefreshToken{}, err
+		return domain.TokenPair{}, domain.RefreshToken{}, err
 	}
 
-	refreshToken, err := s.encryptToken(model.TokenClaims{
+	refreshToken, err := s.encryptToken(domain.TokenClaims{
 		UserID:      userID,
 		WorkspaceID: access.WorkspaceID,
 		Role:        access.Role,
@@ -263,15 +263,15 @@ func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *model.Acc
 		ExpiresAt:   refreshExpiresAt,
 	}, now)
 	if err != nil {
-		return model.TokenPair{}, model.RefreshToken{}, err
+		return domain.TokenPair{}, domain.RefreshToken{}, err
 	}
 
-	return model.TokenPair{
+	return domain.TokenPair{
 			AccessToken:           accessToken,
 			AccessTokenExpiresAt:  accessExpiresAt,
 			RefreshToken:          refreshToken,
 			RefreshTokenExpiresAt: refreshExpiresAt,
-		}, model.RefreshToken{
+		}, domain.RefreshToken{
 			ID:          refreshID,
 			UserID:      userID,
 			WorkspaceID: access.WorkspaceID,
@@ -282,7 +282,7 @@ func (s *auth) issueTokenPair(now time.Time, userID uuid.UUID, access *model.Acc
 }
 
 // encryptToken creates a PASETO v4 symmetric token with the given claims.
-func (s *auth) encryptToken(claims model.TokenClaims, now time.Time) (string, error) {
+func (s *auth) encryptToken(claims domain.TokenClaims, now time.Time) (string, error) {
 	token := paseto.NewToken()
 	token.SetIssuedAt(now)
 	token.SetNotBefore(now)
@@ -297,7 +297,7 @@ func (s *auth) encryptToken(claims model.TokenClaims, now time.Time) (string, er
 }
 
 // parseToken validates a PASETO v4 symmetric token and extracts claims.
-func (s *auth) parseToken(rawToken, expectedType string) (*model.TokenClaims, error) {
+func (s *auth) parseToken(rawToken, expectedType string) (*domain.TokenClaims, error) {
 	parser := paseto.NewParser()
 	parsed, err := parser.ParseV4Local(s.key, rawToken, nil)
 	if err != nil {
@@ -348,10 +348,10 @@ func (s *auth) parseToken(rawToken, expectedType string) (*model.TokenClaims, er
 		return nil, apperr.UnauthorizedError("invalid token expiration")
 	}
 
-	return &model.TokenClaims{
+	return &domain.TokenClaims{
 		UserID:      userID,
 		WorkspaceID: workspaceID,
-		Role:        model.Role(roleText),
+		Role:        domain.Role(roleText),
 		Type:        tokenType,
 		JTI:         jti,
 		ExpiresAt:   expiresAt,

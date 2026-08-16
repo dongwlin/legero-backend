@@ -25,8 +25,9 @@ internal/
   app/                composition root: wire providers/injectors, router, lifecycle
   apperr/             transport-agnostic application errors (AppError/Kind, constructors)
   handler/            router + middleware (auth, cors, logger) + versioned handlers (v1), request/response DTOs, and httpresp response helpers (Kind -> HTTP mapping)
-  model/              unified domain + ORM models, domain rules, sentinel errors
+  domain/             pure domain models and business rules
   repo/               data access (bun queries)
+    schema/           bun persistence mappings, repo-private by convention
   service/            business logic: interfaces + request/result types in `service`, implementations in `service/v1`
   infra/
     config/           viper config loading; build info (Version/Commit/BuildTime/GoVersion)
@@ -47,13 +48,13 @@ bin/                  local build output (gitignored)
 
 Requests flow through the standard layered structure:
 
-`handler → service → repo → model` (gin middleware lives inside the handler package)
+`handler → service → repo → domain` (gin middleware lives inside the handler package)
 
 * `internal/app` is the composition root. Google wire (`wire.go` → generated `wire_gen.go`) bootstraps config, logger, timezone, migrations, DB, the realtime broker/session manager, services, handlers, and the gin router; `Application.Run` serves until a shutdown signal and then drains gracefully (30s timeout). The `create-user` CLI uses its own injector (`InitializeUserCreator`).
 * Handlers (and the gin middleware in `internal/handler/middleware`) translate HTTP/WS into service calls and render JSON via `internal/handler/httpresp` (mapping `apperr.Kind` to HTTP status); they contain no business logic. Services and infra return `*apperr.AppError` and never import the handler layer.
 * Services hold business rules and orchestrate repos and the realtime broker.
-* Repos encapsulate all bun queries; they take a `bun.IDB` so callers can pass a transaction.
-* Models are the single source of truth for both domain logic and DB mapping (bun tags); rules such as step toggling and price computation live in `internal/model` and are unit-testable without a database.
+* Repos encapsulate all bun queries; they take a `bun.IDB` so callers can pass a transaction, and they operate on bun-mapped structs from the private `internal/repo/schema` subpackage, converting to and from domain types internally.
+* Domain models live in `internal/domain` as pure structs with no ORM mapping; business rules such as step toggling and price computation live there too and are unit-testable without a database.
 
 ## Domain Model
 
@@ -63,7 +64,7 @@ Requests flow through the standard layered structure:
 * `refresh_tokens` — rotating refresh tokens (hash stored, revoked/rotated chain)
 * `workspace_daily_counters` — per-workspace per-business-day sequence for order numbers
 
-Order form values are encoded as smallint codes (`stapleTypeCode`, `selectedMeatCodes`, …), with cooking step statuses `unrequired` | `not-started` | `completed` (`model.StepStatus*`). An order can be marked served only when all required steps are completed (`Order.CanServe`).
+Order form values are encoded as smallint codes (`stapleTypeCode`, `selectedMeatCodes`, …), with cooking step statuses `unrequired` | `not-started` | `completed` (`domain.StepStatus*`). An order can be marked served only when all required steps are completed (`Order.CanServe`).
 
 ## API Surface
 
@@ -86,7 +87,7 @@ Authenticated (Bearer access token):
 
 ## Realtime WebSocket
 
-A client first calls `POST /api/realtime/session` (authenticated) to obtain a short-lived one-time ticket, then connects to `GET /api/ws?ticket=...`. The broker fans out order events (`internal/model/order_events.go`) to connected sessions. Heartbeat interval, session TTL, read/write timeouts, and allowed origins are configured under `realtime:` and `ws:`.
+A client first calls `POST /api/realtime/session` (authenticated) to obtain a short-lived one-time ticket, then connects to `GET /api/ws?ticket=...`. The broker fans out order events (`internal/domain/order_events.go`) to connected sessions. Heartbeat interval, session TTL, read/write timeouts, and allowed origins are configured under `realtime:` and `ws:`.
 
 ## Configuration
 

@@ -2,3 +2,6 @@ config/config.yaml
 bin
 
 AGENTS.local.md
+# local go build caches (sandbox workaround)
+.gocache/
+.go-modcache/

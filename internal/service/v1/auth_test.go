@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/dongwlin/legero-backend/migrations"
 	"github.com/google/uuid"
@@ -86,8 +87,8 @@ func TestMain(m *testing.M) {
 // mockOrderLoader implements ActiveOrderLoader for tests.
 type mockOrderLoader struct{}
 
-func (m *mockOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]model.Order, error) {
-	return []model.Order{}, nil
+func (m *mockOrderLoader) ListActive(_ context.Context, _ uuid.UUID) ([]domain.Order, error) {
+	return []domain.Order{}, nil
 }
 
 // newTestService creates a Service wired to testDB with test-friendly settings.
@@ -119,10 +120,10 @@ func newTestService(t *testing.T, db *bun.DB) service.Auth {
 	return svc
 }
 
-func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*model.User)) uuid.UUID {
+func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*domain.User)) uuid.UUID {
 	t.Helper()
 
-	user := model.User{
+	user := domain.User{
 		ID:           uuid.New(),
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
 		PasswordHash: crypto.MustHashForTests("password123"),
@@ -135,8 +136,7 @@ func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(
 		opt(&user)
 	}
 
-	_, err := db.NewInsert().Model(&user).Exec(ctx)
-	if err != nil {
+	if err := repo.NewUser(db).Insert(ctx, &user); err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
@@ -178,7 +178,7 @@ func TestLogin_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001001"
 		u.IsActive = true
 	})
@@ -198,7 +198,7 @@ func TestLogin_Success(t *testing.T) {
 	// Bootstrap data.
 	require.Equal(t, userID, result.Bootstrap.User.ID)
 	require.Equal(t, "13800001001", result.Bootstrap.User.Phone)
-	require.Equal(t, model.RoleOwner, result.Bootstrap.User.Role)
+	require.Equal(t, domain.RoleOwner, result.Bootstrap.User.Role)
 	require.Equal(t, wsID, result.Bootstrap.Workspace.ID)
 	require.Equal(t, "test-workspace", result.Bootstrap.Workspace.Name)
 	require.Contains(t, result.Bootstrap.Permissions, "orders:read")
@@ -222,7 +222,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *model.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001002"
 		u.IsActive = true
 	})
@@ -239,7 +239,7 @@ func TestLogin_InactiveUser(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *model.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001003"
 		u.IsActive = false
 	})
@@ -256,7 +256,7 @@ func TestLogin_NoWorkspace(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *model.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001004"
 		u.IsActive = true
 	})
@@ -278,7 +278,7 @@ func TestRefresh_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002001"
 		u.IsActive = true
 	})
@@ -324,7 +324,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002002"
 		u.IsActive = true
 	})
@@ -349,7 +349,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002003"
 		u.IsActive = true
 	})
@@ -363,7 +363,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	tokenHash := crypto.HashToken(loginResult.TokenPair.RefreshToken)
 	now := time.Now()
 	_, err = testDB.NewUpdate().
-		Model((*model.RefreshToken)(nil)).
+		Table("refresh_tokens").
 		Set("revoked_at = ?", now).
 		Where("token_hash = ?", tokenHash).
 		Exec(ctx)
@@ -385,7 +385,7 @@ func TestBootstrap_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003001"
 		u.IsActive = true
 	})
@@ -395,7 +395,7 @@ func TestBootstrap_Success(t *testing.T) {
 	authCtx := &identity.Context{
 		UserID:      userID,
 		WorkspaceID: wsID,
-		Role:        string(model.RoleStaff),
+		Role:        string(domain.RoleStaff),
 	}
 
 	data, err := svc.Bootstrap(ctx, authCtx)
@@ -404,7 +404,7 @@ func TestBootstrap_Success(t *testing.T) {
 
 	require.Equal(t, userID, data.User.ID)
 	require.Equal(t, "13800003001", data.User.Phone)
-	require.Equal(t, model.RoleStaff, data.User.Role)
+	require.Equal(t, domain.RoleStaff, data.User.Role)
 	require.Equal(t, wsID, data.Workspace.ID)
 	require.Equal(t, "test-workspace", data.Workspace.Name)
 	require.Contains(t, data.Permissions, "orders:read")
@@ -418,7 +418,7 @@ func TestBootstrap_InactiveUser(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003002"
 		u.IsActive = false
 	})
@@ -428,7 +428,7 @@ func TestBootstrap_InactiveUser(t *testing.T) {
 	authCtx := &identity.Context{
 		UserID:      userID,
 		WorkspaceID: wsID,
-		Role:        string(model.RoleOwner),
+		Role:        string(domain.RoleOwner),
 	}
 
 	_, err := svc.Bootstrap(ctx, authCtx)
@@ -443,7 +443,7 @@ func TestBootstrap_NoWorkspace(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *model.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003003"
 		u.IsActive = true
 	})
@@ -451,7 +451,7 @@ func TestBootstrap_NoWorkspace(t *testing.T) {
 	authCtx := &identity.Context{
 		UserID:      userID,
 		WorkspaceID: uuid.New(),
-		Role:        string(model.RoleOwner),
+		Role:        string(domain.RoleOwner),
 	}
 
 	_, err := svc.Bootstrap(ctx, authCtx)
