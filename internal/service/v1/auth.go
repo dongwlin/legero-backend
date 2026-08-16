@@ -324,11 +324,8 @@ func (s *auth) parseToken(rawToken, expectedType string) (*domain.TokenClaims, e
 		return nil, apperr.UnauthorizedError("invalid token")
 	}
 	roleText, err := parsed.GetString("role")
-	if err != nil {
-		return nil, apperr.UnauthorizedError("invalid token")
-	}
 	role := domain.Role(roleText)
-	if !role.Valid() {
+	if err != nil || !role.Valid() {
 		return nil, apperr.UnauthorizedError("invalid token role")
 	}
 	tokenType, err := parsed.GetString("typ")

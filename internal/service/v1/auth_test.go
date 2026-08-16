@@ -512,6 +512,7 @@ func TestParseToken_RejectsInvalidRole(t *testing.T) {
 			var appErr *apperr.AppError
 			require.True(t, errors.As(err, &appErr))
 			require.Equal(t, apperr.KindUnauthenticated, appErr.Kind)
+			require.Equal(t, "invalid token role", appErr.Message)
 		})
 	}
 }
