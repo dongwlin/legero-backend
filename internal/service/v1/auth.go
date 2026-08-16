@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -44,6 +45,10 @@ func NewAuth(
 	refreshTTL time.Duration,
 	keyBytes []byte,
 ) (service.Auth, error) {
+	if newAccessLoader == nil {
+		return nil, errors.New("workspace access loader factory is required")
+	}
+
 	key, err := paseto.V4SymmetricKeyFromBytes(keyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("create paseto symmetric key: %w", err)

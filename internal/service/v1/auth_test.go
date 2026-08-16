@@ -162,6 +162,31 @@ func newTestServiceFull(
 	return svc
 }
 
+// TestNewAuth_RequiresAccessLoaderFactory guards the constructor's fail-fast
+// validation: a nil workspace-access factory is a wiring mistake that must be
+// reported at startup rather than deferred into a request-time panic.
+func TestNewAuth_RequiresAccessLoaderFactory(t *testing.T) {
+	keyBytes := make([]byte, 32)
+	_, err := NewAuth(
+		testDB,
+		nil,
+		&mockOrderLoader{},
+		crypto.NewPasswordHasher(config.Argon2Config{
+			MemoryKiB:   8 * 1024,
+			Iterations:  1,
+			Parallelism: 1,
+			SaltLength:  16,
+			KeyLength:   32,
+		}),
+		time.UTC,
+		15*time.Minute,
+		7*24*time.Hour,
+		keyBytes,
+	)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "workspace access loader factory is required")
+}
+
 func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*domain.User)) uuid.UUID {
 	t.Helper()
 
