@@ -12,7 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/repo/schema"
 )
 
 type Order struct {
@@ -24,13 +25,13 @@ func NewOrder(db bun.IDB) *Order {
 }
 
 type listCursor struct {
-	Status      model.ListStatus `json:"status"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	CompletedAt *time.Time       `json:"completedAt,omitempty"`
-	ID          uuid.UUID        `json:"id"`
+	Status      domain.ListStatus `json:"status"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	CompletedAt *time.Time        `json:"completedAt,omitempty"`
+	ID          uuid.UUID         `json:"id"`
 }
 
-func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query model.ListOrdersQuery) ([]model.Order, *string, error) {
+func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query domain.ListOrdersQuery) ([]domain.Order, *string, error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 50
@@ -44,20 +45,20 @@ func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query model.Lis
 		return nil, nil, err
 	}
 
-	orders := make([]model.Order, 0, limit+1)
+	schemas := make([]schema.Order, 0, limit+1)
 	selectQuery := r.db.NewSelect().
-		Model(&orders).
+		Model(&schemas).
 		Where("workspace_id = ?", workspaceID)
 
 	switch query.Status {
-	case model.ListStatusUncompleted:
+	case domain.ListStatusUncompleted:
 		selectQuery = selectQuery.
 			Where("completed_at IS NULL").
 			OrderExpr("created_at ASC, id ASC")
 		if cursor != nil {
 			selectQuery = selectQuery.Where("(created_at > ?) OR (created_at = ? AND id > ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
 		}
-	case model.ListStatusCompleted:
+	case domain.ListStatusCompleted:
 		selectQuery = selectQuery.
 			Where("completed_at IS NOT NULL").
 			OrderExpr("completed_at DESC, created_at DESC, id DESC")
@@ -69,7 +70,7 @@ func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query model.Lis
 				*cursor.CompletedAt, cursor.CreatedAt, cursor.ID,
 			)
 		}
-	case model.ListStatusAll:
+	case domain.ListStatusAll:
 		selectQuery = selectQuery.OrderExpr("created_at DESC, id DESC")
 		if cursor != nil {
 			selectQuery = selectQuery.Where("(created_at < ?) OR (created_at = ? AND id < ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
@@ -83,9 +84,9 @@ func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query model.Lis
 	}
 
 	var nextCursor *string
-	if len(orders) > limit {
-		last := orders[limit-1]
-		orders = orders[:limit]
+	if len(schemas) > limit {
+		last := schemas[limit-1]
+		schemas = schemas[:limit]
 		cursorValue, err := encodeCursor(query.Status, last.CreatedAt, last.CompletedAt, last.ID)
 		if err != nil {
 			return nil, nil, err
@@ -93,26 +94,35 @@ func (r *Order) List(ctx context.Context, workspaceID uuid.UUID, query model.Lis
 		nextCursor = &cursorValue
 	}
 
+	orders := make([]domain.Order, len(schemas))
+	for i := range schemas {
+		orders[i] = *toDomainOrder(&schemas[i])
+	}
 	return orders, nextCursor, nil
 }
 
-func (r *Order) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]model.Order, error) {
-	orders := make([]model.Order, 0)
+func (r *Order) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]domain.Order, error) {
+	schemas := make([]schema.Order, 0)
 	if err := r.db.NewSelect().
-		Model(&orders).
+		Model(&schemas).
 		Where("workspace_id = ?", workspaceID).
 		Where("completed_at IS NULL").
 		OrderExpr("created_at ASC, id ASC").
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list active orders: %w", err)
 	}
+
+	orders := make([]domain.Order, len(schemas))
+	for i := range schemas {
+		orders[i] = *toDomainOrder(&schemas[i])
+	}
 	return orders, nil
 }
 
-func (r *Order) GetByID(ctx context.Context, workspaceID, orderID uuid.UUID) (*model.Order, error) {
-	order := new(model.Order)
+func (r *Order) GetByID(ctx context.Context, workspaceID, orderID uuid.UUID) (*domain.Order, error) {
+	s := new(schema.Order)
 	err := r.db.NewSelect().
-		Model(order).
+		Model(s).
 		Where("workspace_id = ?", workspaceID).
 		Where("id = ?", orderID).
 		Limit(1).
@@ -123,23 +133,29 @@ func (r *Order) GetByID(ctx context.Context, workspaceID, orderID uuid.UUID) (*m
 		}
 		return nil, fmt.Errorf("get order by id: %w", err)
 	}
-	return order, nil
+	return toDomainOrder(s), nil
 }
 
-func (r *Order) InsertMany(ctx context.Context, orders []model.Order) error {
+func (r *Order) InsertMany(ctx context.Context, orders []domain.Order) error {
 	if len(orders) == 0 {
 		return nil
 	}
 
-	if _, err := r.db.NewInsert().Model(&orders).Exec(ctx); err != nil {
+	schemas := make([]schema.Order, len(orders))
+	for i := range orders {
+		schemas[i] = *toSchemaOrder(&orders[i])
+	}
+
+	if _, err := r.db.NewInsert().Model(&schemas).Exec(ctx); err != nil {
 		return fmt.Errorf("insert orders: %w", err)
 	}
 	return nil
 }
 
-func (r *Order) Update(ctx context.Context, order *model.Order) error {
+func (r *Order) Update(ctx context.Context, order *domain.Order) error {
+	s := toSchemaOrder(order)
 	result, err := r.db.NewUpdate().
-		Model(order).
+		Model(s).
 		WherePK().
 		Where("workspace_id = ?", order.WorkspaceID).
 		Exec(ctx)
@@ -155,7 +171,7 @@ func (r *Order) Update(ctx context.Context, order *model.Order) error {
 
 func (r *Order) Delete(ctx context.Context, workspaceID, orderID uuid.UUID) (bool, error) {
 	result, err := r.db.NewDelete().
-		Model((*model.Order)(nil)).
+		Model((*schema.Order)(nil)).
 		Where("workspace_id = ?", workspaceID).
 		Where("id = ?", orderID).
 		Exec(ctx)
@@ -168,7 +184,7 @@ func (r *Order) Delete(ctx context.Context, workspaceID, orderID uuid.UUID) (boo
 
 func (r *Order) ClearWorkspace(ctx context.Context, workspaceID uuid.UUID, createdBefore *time.Time) (int, error) {
 	query := r.db.NewDelete().
-		Model((*model.Order)(nil)).
+		Model((*schema.Order)(nil)).
 		Where("workspace_id = ?", workspaceID)
 
 	if createdBefore != nil {
@@ -183,7 +199,69 @@ func (r *Order) ClearWorkspace(ctx context.Context, workspaceID uuid.UUID, creat
 	return int(rows), nil
 }
 
-func encodeCursor(status model.ListStatus, createdAt time.Time, completedAt *time.Time, id uuid.UUID) (string, error) {
+func toSchemaOrder(o *domain.Order) *schema.Order {
+	return &schema.Order{
+		ID:                   o.ID,
+		WorkspaceID:          o.WorkspaceID,
+		DisplayNo:            o.DisplayNo,
+		StapleTypeCode:       o.StapleTypeCode,
+		SizeCode:             o.SizeCode,
+		CustomSizePriceCents: o.CustomSizePriceCents,
+		StapleAmountCode:     o.StapleAmountCode,
+		ExtraStapleUnits:     o.ExtraStapleUnits,
+		FriedEggCount:        o.FriedEggCount,
+		TofuSkewerCount:      o.TofuSkewerCount,
+		SelectedMeatCodes:    o.SelectedMeatCodes,
+		GreensCode:           o.GreensCode,
+		ScallionCode:         o.ScallionCode,
+		PepperCode:           o.PepperCode,
+		DiningMethodCode:     o.DiningMethodCode,
+		PackagingCode:        o.PackagingCode,
+		PackagingMethodCode:  o.PackagingMethodCode,
+		TotalPriceCents:      o.TotalPriceCents,
+		StapleStepStatusCode: o.StapleStepStatusCode,
+		MeatStepStatusCode:   o.MeatStepStatusCode,
+		Note:                 o.Note,
+		CreatedBy:            o.CreatedBy,
+		UpdatedBy:            o.UpdatedBy,
+		CreatedAt:            o.CreatedAt,
+		UpdatedAt:            o.UpdatedAt,
+		CompletedAt:          o.CompletedAt,
+	}
+}
+
+func toDomainOrder(s *schema.Order) *domain.Order {
+	return &domain.Order{
+		ID:                   s.ID,
+		WorkspaceID:          s.WorkspaceID,
+		DisplayNo:            s.DisplayNo,
+		StapleTypeCode:       s.StapleTypeCode,
+		SizeCode:             s.SizeCode,
+		CustomSizePriceCents: s.CustomSizePriceCents,
+		StapleAmountCode:     s.StapleAmountCode,
+		ExtraStapleUnits:     s.ExtraStapleUnits,
+		FriedEggCount:        s.FriedEggCount,
+		TofuSkewerCount:      s.TofuSkewerCount,
+		SelectedMeatCodes:    s.SelectedMeatCodes,
+		GreensCode:           s.GreensCode,
+		ScallionCode:         s.ScallionCode,
+		PepperCode:           s.PepperCode,
+		DiningMethodCode:     s.DiningMethodCode,
+		PackagingCode:        s.PackagingCode,
+		PackagingMethodCode:  s.PackagingMethodCode,
+		TotalPriceCents:      s.TotalPriceCents,
+		StapleStepStatusCode: s.StapleStepStatusCode,
+		MeatStepStatusCode:   s.MeatStepStatusCode,
+		Note:                 s.Note,
+		CreatedBy:            s.CreatedBy,
+		UpdatedBy:            s.UpdatedBy,
+		CreatedAt:            s.CreatedAt,
+		UpdatedAt:            s.UpdatedAt,
+		CompletedAt:          s.CompletedAt,
+	}
+}
+
+func encodeCursor(status domain.ListStatus, createdAt time.Time, completedAt *time.Time, id uuid.UUID) (string, error) {
 	payload := listCursor{
 		Status:      status,
 		CreatedAt:   createdAt,

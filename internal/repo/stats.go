@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 )
 
 type Stats struct {
@@ -25,7 +25,7 @@ type dailyRowModel struct {
 	TotalPriceCents int       `bun:"total_price_cents"`
 }
 
-func (r *Stats) Daily(ctx context.Context, workspaceID uuid.UUID, timezone string, from, to time.Time) ([]model.DailyRow, error) {
+func (r *Stats) Daily(ctx context.Context, workspaceID uuid.UUID, timezone string, from, to time.Time) ([]domain.DailyRow, error) {
 	var models []dailyRowModel
 	if err := r.db.NewRaw(`
 with days as (
@@ -52,9 +52,9 @@ order by days.biz_date desc
 		return nil, fmt.Errorf("query daily stats: %w", err)
 	}
 
-	rows := make([]model.DailyRow, 0, len(models))
+	rows := make([]domain.DailyRow, 0, len(models))
 	for _, m := range models {
-		rows = append(rows, model.DailyRow{
+		rows = append(rows, domain.DailyRow{
 			Date:            m.Date,
 			OrderCount:      m.OrderCount,
 			TotalPriceCents: m.TotalPriceCents,

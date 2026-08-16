@@ -12,7 +12,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
@@ -41,8 +41,8 @@ func (h *OrderHandler) List(c *gin.Context) {
 		return
 	}
 
-	query := model.ListOrdersQuery{
-		Status: model.ListStatus(c.DefaultQuery("status", string(model.ListStatusUncompleted))),
+	query := domain.ListOrdersQuery{
+		Status: domain.ListStatus(c.DefaultQuery("status", string(domain.ListStatusUncompleted))),
 		Limit:  limit,
 		Cursor: c.Query("cursor"),
 	}
@@ -67,7 +67,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 
-	var input model.CreateOrdersInput
+	var input domain.CreateOrdersInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid create order payload"))
 		return
@@ -97,7 +97,7 @@ func (h *OrderHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var input model.UpdateOrderInput
+	var input domain.UpdateOrderInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid update order payload"))
 		return
@@ -127,7 +127,7 @@ func (h *OrderHandler) ToggleStep(c *gin.Context) {
 		return
 	}
 
-	var input model.ToggleStepInput
+	var input domain.ToggleStepInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid toggle step payload"))
 		return
@@ -157,7 +157,7 @@ func (h *OrderHandler) ToggleServed(c *gin.Context) {
 		return
 	}
 
-	var input model.ToggleServedInput
+	var input domain.ToggleServedInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid toggle served payload"))
 		return
@@ -203,7 +203,7 @@ func (h *OrderHandler) Clear(c *gin.Context) {
 		return
 	}
 
-	var input model.ClearWorkspaceInput
+	var input domain.ClearWorkspaceInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid clear payload"))
 		return
@@ -221,19 +221,19 @@ func (h *OrderHandler) Clear(c *gin.Context) {
 }
 
 // actorFromGin extracts the Actor from the gin context (set by auth middleware).
-func actorFromGin(c *gin.Context) (model.Actor, bool) {
+func actorFromGin(c *gin.Context) (domain.Actor, bool) {
 	value, ok := c.Get(identity.GinContextKey)
 	if !ok {
-		return model.Actor{}, false
+		return domain.Actor{}, false
 	}
 	authCtx, ok := value.(*identity.Context)
 	if !ok {
-		return model.Actor{}, false
+		return domain.Actor{}, false
 	}
-	return model.Actor{
+	return domain.Actor{
 		UserID:      authCtx.UserID,
 		WorkspaceID: authCtx.WorkspaceID,
-		Role:        model.Role(authCtx.Role),
+		Role:        domain.Role(authCtx.Role),
 	}, true
 }
 
@@ -253,8 +253,8 @@ func parseLimit(value string) (int, error) {
 }
 
 // toOrderDTOs converts a slice of Order to a slice of OrderDTO.
-func toOrderDTOs(items []model.Order, location *time.Location) []model.OrderDTO {
-	dtos := make([]model.OrderDTO, 0, len(items))
+func toOrderDTOs(items []domain.Order, location *time.Location) []domain.OrderDTO {
+	dtos := make([]domain.OrderDTO, 0, len(items))
 	for _, item := range items {
 		dtos = append(dtos, item.ToDTO(location))
 	}

@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/dongwlin/legero-backend/internal/infra/database"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/repo/schema"
 	"github.com/dongwlin/legero-backend/migrations"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
@@ -135,10 +136,10 @@ func newTestCounterRepo(t *testing.T, ctx context.Context) (*bun.Tx, *Counter) {
 	return &tx, NewCounter(&tx)
 }
 
-func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*model.User)) uuid.UUID {
+func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*domain.User)) uuid.UUID {
 	t.Helper()
 
-	user := model.User{
+	user := domain.User{
 		ID:           uuid.New(),
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
 		PasswordHash: "$argon2id$v=19$m=65536,t=3,p=2$c2FsdHNhbHRzYWx0$hash",
@@ -151,8 +152,7 @@ func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(
 		opt(&user)
 	}
 
-	_, err := db.NewInsert().Model(&user).Exec(ctx)
-	if err != nil {
+	if _, err := db.NewInsert().Model(toSchemaUser(&user)).Exec(ctx); err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
@@ -186,10 +186,10 @@ func createTestWorkspaceMember(t *testing.T, ctx context.Context, db bun.IDB, us
 	}
 }
 
-func createTestRefreshToken(t *testing.T, ctx context.Context, db bun.IDB, userID, workspaceID uuid.UUID, opts ...func(*model.RefreshToken)) model.RefreshToken {
+func createTestRefreshToken(t *testing.T, ctx context.Context, db bun.IDB, userID, workspaceID uuid.UUID, opts ...func(*domain.RefreshToken)) domain.RefreshToken {
 	t.Helper()
 
-	token := model.RefreshToken{
+	token := domain.RefreshToken{
 		ID:          uuid.New(),
 		UserID:      userID,
 		WorkspaceID: workspaceID,
@@ -202,33 +202,43 @@ func createTestRefreshToken(t *testing.T, ctx context.Context, db bun.IDB, userI
 		opt(&token)
 	}
 
-	_, err := db.NewInsert().Model(&token).Exec(ctx)
-	if err != nil {
+	s := &schema.RefreshToken{
+		ID:           token.ID,
+		UserID:       token.UserID,
+		WorkspaceID:  token.WorkspaceID,
+		TokenHash:    token.TokenHash,
+		ExpiresAt:    token.ExpiresAt,
+		CreatedAt:    token.CreatedAt,
+		RotatedAt:    token.RotatedAt,
+		RevokedAt:    token.RevokedAt,
+		ReplacedByID: token.ReplacedByID,
+	}
+	if _, err := db.NewInsert().Model(s).Exec(ctx); err != nil {
 		t.Fatalf("failed to create test refresh token: %v", err)
 	}
 
 	return token
 }
 
-func createTestOrder(t *testing.T, ctx context.Context, db bun.IDB, workspaceID, userID uuid.UUID, opts ...func(*model.Order)) model.Order {
+func createTestOrder(t *testing.T, ctx context.Context, db bun.IDB, workspaceID, userID uuid.UUID, opts ...func(*domain.Order)) domain.Order {
 	t.Helper()
 
 	now := time.Now()
 
-	order := model.Order{
+	order := domain.Order{
 		ID:                   uuid.New(),
 		WorkspaceID:          workspaceID,
 		DisplayNo:            "T001",
-		SizeCode:             model.SizeSmall,
-		StapleAmountCode:     model.AdjustmentNormal,
-		GreensCode:           model.AdjustmentNormal,
-		ScallionCode:         model.AdjustmentNormal,
-		PepperCode:           model.AdjustmentNormal,
-		DiningMethodCode:     model.DiningMethodDineIn,
-		SelectedMeatCodes:    []int16{model.MeatLeanPork},
+		SizeCode:             domain.SizeSmall,
+		StapleAmountCode:     domain.AdjustmentNormal,
+		GreensCode:           domain.AdjustmentNormal,
+		ScallionCode:         domain.AdjustmentNormal,
+		PepperCode:           domain.AdjustmentNormal,
+		DiningMethodCode:     domain.DiningMethodDineIn,
+		SelectedMeatCodes:    []int16{domain.MeatLeanPork},
 		TotalPriceCents:      1000,
-		StapleStepStatusCode: model.StepStatusUnrequired,
-		MeatStepStatusCode:   model.StepStatusUnrequired,
+		StapleStepStatusCode: domain.StepStatusUnrequired,
+		MeatStepStatusCode:   domain.StepStatusUnrequired,
 		CreatedBy:            userID,
 		UpdatedBy:            userID,
 		CreatedAt:            now,
@@ -239,8 +249,7 @@ func createTestOrder(t *testing.T, ctx context.Context, db bun.IDB, workspaceID,
 		opt(&order)
 	}
 
-	_, err := db.NewInsert().Model(&order).Exec(ctx)
-	if err != nil {
+	if _, err := db.NewInsert().Model(toSchemaOrder(&order)).Exec(ctx); err != nil {
 		t.Fatalf("failed to create test order: %v", err)
 	}
 

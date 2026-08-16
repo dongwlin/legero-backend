@@ -9,7 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/repo/schema"
 )
 
 type User struct {
@@ -20,10 +21,10 @@ func NewUser(db bun.IDB) *User {
 	return &User{db: db}
 }
 
-func (r *User) GetByPhone(ctx context.Context, phone string) (*model.User, error) {
-	user := new(model.User)
+func (r *User) GetByPhone(ctx context.Context, phone string) (*domain.User, error) {
+	s := new(schema.User)
 	err := r.db.NewSelect().
-		Model(user).
+		Model(s).
 		Where("phone = ?", phone).
 		Limit(1).
 		Scan(ctx)
@@ -33,13 +34,13 @@ func (r *User) GetByPhone(ctx context.Context, phone string) (*model.User, error
 		}
 		return nil, fmt.Errorf("select user by phone: %w", err)
 	}
-	return user, nil
+	return toDomainUser(s), nil
 }
 
-func (r *User) GetByID(ctx context.Context, userID uuid.UUID) (*model.User, error) {
-	user := new(model.User)
+func (r *User) GetByID(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	s := new(schema.User)
 	err := r.db.NewSelect().
-		Model(user).
+		Model(s).
 		Where("id = ?", userID).
 		Limit(1).
 		Scan(ctx)
@@ -49,13 +50,36 @@ func (r *User) GetByID(ctx context.Context, userID uuid.UUID) (*model.User, erro
 		}
 		return nil, fmt.Errorf("select user by id: %w", err)
 	}
-	return user, nil
+	return toDomainUser(s), nil
 }
 
 // Insert creates a new user.
-func (r *User) Insert(ctx context.Context, user *model.User) error {
-	if _, err := r.db.NewInsert().Model(user).Exec(ctx); err != nil {
+func (r *User) Insert(ctx context.Context, user *domain.User) error {
+	s := toSchemaUser(user)
+	if _, err := r.db.NewInsert().Model(s).Exec(ctx); err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
 	return nil
+}
+
+func toSchemaUser(u *domain.User) *schema.User {
+	return &schema.User{
+		ID:           u.ID,
+		Phone:        u.Phone,
+		PasswordHash: u.PasswordHash,
+		IsActive:     u.IsActive,
+		CreatedAt:    u.CreatedAt,
+		UpdatedAt:    u.UpdatedAt,
+	}
+}
+
+func toDomainUser(s *schema.User) *domain.User {
+	return &domain.User{
+		ID:           s.ID,
+		Phone:        s.Phone,
+		PasswordHash: s.PasswordHash,
+		IsActive:     s.IsActive,
+		CreatedAt:    s.CreatedAt,
+		UpdatedAt:    s.UpdatedAt,
+	}
 }

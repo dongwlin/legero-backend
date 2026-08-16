@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -19,14 +19,14 @@ import (
 type order struct {
 	db        *bun.DB
 	location  *time.Location
-	publisher model.Publisher
+	publisher domain.Publisher
 }
 
 // NewOrder creates a new Order service.
 func NewOrder(
 	db *bun.DB,
 	location *time.Location,
-	publisher model.Publisher,
+	publisher domain.Publisher,
 ) service.Order {
 	return &order{
 		db:        db,
@@ -36,13 +36,13 @@ func NewOrder(
 }
 
 // ListActive returns all uncompleted orders for a workspace.
-func (s *order) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]model.Order, error) {
+func (s *order) ListActive(ctx context.Context, workspaceID uuid.UUID) ([]domain.Order, error) {
 	orderRepo := repo.NewOrder(s.db)
 	return orderRepo.ListActive(ctx, workspaceID)
 }
 
 // List returns a paginated list of orders for a workspace.
-func (s *order) List(ctx context.Context, actor model.Actor, query model.ListOrdersQuery) (*model.ListOrdersResult, error) {
+func (s *order) List(ctx context.Context, actor domain.Actor, query domain.ListOrdersQuery) (*domain.ListOrdersResult, error) {
 	if !query.Status.Valid() {
 		return nil, apperr.ValidationError("status must be one of uncompleted, completed, all")
 	}
@@ -53,14 +53,14 @@ func (s *order) List(ctx context.Context, actor model.Actor, query model.ListOrd
 		return nil, apperr.InternalError("failed to list orders", err)
 	}
 
-	return &model.ListOrdersResult{
+	return &domain.ListOrdersResult{
 		Items:      items,
 		NextCursor: nextCursor,
 	}, nil
 }
 
 // CreateBatch creates multiple orders in a single transaction, allocating display numbers atomically.
-func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.CreateOrdersInput) ([]model.Order, error) {
+func (s *order) CreateBatch(ctx context.Context, actor domain.Actor, input domain.CreateOrdersInput) ([]domain.Order, error) {
 	if input.Quantity <= 0 {
 		return nil, apperr.ValidationError("quantity must be greater than 0")
 	}
@@ -72,7 +72,7 @@ func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.
 
 	now := time.Now()
 	bizDate := orderBusinessDate(now, s.location)
-	items := make([]model.Order, 0, input.Quantity)
+	items := make([]domain.Order, 0, input.Quantity)
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		counterRepo := repo.NewCounter(tx)
@@ -83,7 +83,7 @@ func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.
 
 		for idx := 0; idx < input.Quantity; idx++ {
 			stapleStatus, meatStatus, completedAt := form.InitialStepStatuses()
-			item := model.Order{
+			item := domain.Order{
 				ID:                   uuid.New(),
 				WorkspaceID:          actor.WorkspaceID,
 				DisplayNo:            buildDisplayNo(bizDate, startSeq+idx),
@@ -94,7 +94,7 @@ func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.
 				ExtraStapleUnits:     form.ExtraStapleUnits,
 				FriedEggCount:        form.FriedEggCount,
 				TofuSkewerCount:      form.TofuSkewerCount,
-				SelectedMeatCodes:    model.CloneInt16s(form.SelectedMeatCodes),
+				SelectedMeatCodes:    domain.CloneInt16s(form.SelectedMeatCodes),
 				GreensCode:           form.GreensCode,
 				ScallionCode:         form.ScallionCode,
 				PepperCode:           form.PepperCode,
@@ -125,14 +125,14 @@ func (s *order) CreateBatch(ctx context.Context, actor model.Actor, input model.
 }
 
 // UpdateForm replaces the form data of an existing order.
-func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.UUID, input model.UpdateOrderInput) (*model.Order, error) {
+func (s *order) UpdateForm(ctx context.Context, actor domain.Actor, orderID uuid.UUID, input domain.UpdateOrderInput) (*domain.Order, error) {
 	form, err := input.Form.Normalize()
 	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now()
-	var updated model.Order
+	var updated domain.Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		orderRepo := repo.NewOrder(tx)
@@ -148,7 +148,7 @@ func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.
 		}
 
 		stapleStatus, meatStatus, completedAt := form.InitialStepStatuses()
-		updated = model.Order{
+		updated = domain.Order{
 			ID:                   current.ID,
 			WorkspaceID:          current.WorkspaceID,
 			DisplayNo:            current.DisplayNo,
@@ -159,7 +159,7 @@ func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.
 			ExtraStapleUnits:     form.ExtraStapleUnits,
 			FriedEggCount:        form.FriedEggCount,
 			TofuSkewerCount:      form.TofuSkewerCount,
-			SelectedMeatCodes:    model.CloneInt16s(form.SelectedMeatCodes),
+			SelectedMeatCodes:    domain.CloneInt16s(form.SelectedMeatCodes),
 			GreensCode:           form.GreensCode,
 			ScallionCode:         form.ScallionCode,
 			PepperCode:           form.PepperCode,
@@ -182,18 +182,18 @@ func (s *order) UpdateForm(ctx context.Context, actor model.Actor, orderID uuid.
 		return nil, wrapError("failed to update order", err)
 	}
 
-	s.publishUpserts([]model.Order{updated})
+	s.publishUpserts([]domain.Order{updated})
 	return &updated, nil
 }
 
 // ToggleStep toggles the completion state of a cooking step ("staple" or "meat").
-func (s *order) ToggleStep(ctx context.Context, actor model.Actor, orderID uuid.UUID, input model.ToggleStepInput) (*model.Order, error) {
+func (s *order) ToggleStep(ctx context.Context, actor domain.Actor, orderID uuid.UUID, input domain.ToggleStepInput) (*domain.Order, error) {
 	if input.Step != "staple" && input.Step != "meat" {
 		return nil, apperr.ValidationError("step must be one of staple or meat")
 	}
 
 	now := time.Now()
-	var updated model.Order
+	var updated domain.Order
 	var changed bool
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -224,15 +224,15 @@ func (s *order) ToggleStep(ctx context.Context, actor model.Actor, orderID uuid.
 	}
 
 	if changed {
-		s.publishUpserts([]model.Order{updated})
+		s.publishUpserts([]domain.Order{updated})
 	}
 	return &updated, nil
 }
 
 // ToggleServed toggles the served (completed) state of an order.
-func (s *order) ToggleServed(ctx context.Context, actor model.Actor, orderID uuid.UUID, input model.ToggleServedInput) (*model.Order, error) {
+func (s *order) ToggleServed(ctx context.Context, actor domain.Actor, orderID uuid.UUID, input domain.ToggleServedInput) (*domain.Order, error) {
 	now := time.Now()
-	var updated model.Order
+	var updated domain.Order
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		orderRepo := repo.NewOrder(tx)
@@ -258,12 +258,12 @@ func (s *order) ToggleServed(ctx context.Context, actor model.Actor, orderID uui
 		return nil, wrapError("failed to toggle served status", err)
 	}
 
-	s.publishUpserts([]model.Order{updated})
+	s.publishUpserts([]domain.Order{updated})
 	return &updated, nil
 }
 
 // Remove deletes an order.
-func (s *order) Remove(ctx context.Context, actor model.Actor, orderID uuid.UUID) error {
+func (s *order) Remove(ctx context.Context, actor domain.Actor, orderID uuid.UUID) error {
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		orderRepo := repo.NewOrder(tx)
 		removed, err := orderRepo.Delete(ctx, actor.WorkspaceID, orderID)
@@ -279,13 +279,13 @@ func (s *order) Remove(ctx context.Context, actor model.Actor, orderID uuid.UUID
 	}
 
 	if s.publisher != nil {
-		s.publisher.Publish(actor.WorkspaceID, model.EventOrderDeleted, model.DeletedEvent{ID: orderID.String()})
+		s.publisher.Publish(actor.WorkspaceID, domain.EventOrderDeleted, domain.DeletedEvent{ID: orderID.String()})
 	}
 	return nil
 }
 
 // ClearWorkspace deletes orders from a workspace, optionally filtering by date.
-func (s *order) ClearWorkspace(ctx context.Context, actor model.Actor, confirm bool, mode model.ClearWorkspaceMode) (int, error) {
+func (s *order) ClearWorkspace(ctx context.Context, actor domain.Actor, confirm bool, mode domain.ClearWorkspaceMode) (int, error) {
 	if !actor.Role.CanClear() {
 		return 0, apperr.ForbiddenError("only owner can clear workspace orders")
 	}
@@ -298,7 +298,7 @@ func (s *order) ClearWorkspace(ctx context.Context, actor model.Actor, confirm b
 
 	resolvedMode := mode.Normalize()
 	var clearBefore *time.Time
-	if resolvedMode == model.ClearWorkspaceModeBeforeToday {
+	if resolvedMode == domain.ClearWorkspaceModeBeforeToday {
 		todayStart := orderBusinessDate(time.Now(), s.location)
 		clearBefore = &todayStart
 	}
@@ -322,8 +322,8 @@ func (s *order) ClearWorkspace(ctx context.Context, actor model.Actor, confirm b
 func (s *order) clearWorkspaceInTx(
 	ctx context.Context,
 	db bun.IDB,
-	actor model.Actor,
-	mode model.ClearWorkspaceMode,
+	actor domain.Actor,
+	mode domain.ClearWorkspaceMode,
 	clearBefore *time.Time,
 ) (int, error) {
 	orderRepo := repo.NewOrder(db)
@@ -337,7 +337,7 @@ func (s *order) clearWorkspaceInTx(
 	}
 
 	if s.publisher != nil {
-		s.publisher.Publish(actor.WorkspaceID, model.EventOrderCleared, model.ClearedEvent{
+		s.publisher.Publish(actor.WorkspaceID, domain.EventOrderCleared, domain.ClearedEvent{
 			ClearedCount: count,
 			Mode:         mode,
 		})
@@ -360,7 +360,7 @@ func orderBusinessDate(now time.Time, location *time.Location) time.Time {
 }
 
 // checkExpectedUpdatedAt enforces optimistic concurrency on order updates.
-func checkExpectedUpdatedAt(current model.Order, expected *time.Time) error {
+func checkExpectedUpdatedAt(current domain.Order, expected *time.Time) error {
 	if expected == nil {
 		return nil
 	}
@@ -371,7 +371,7 @@ func checkExpectedUpdatedAt(current model.Order, expected *time.Time) error {
 }
 
 // sameOrderProgress reports whether the step status and completion state are unchanged.
-func sameOrderProgress(before, after model.Order) bool {
+func sameOrderProgress(before, after domain.Order) bool {
 	if before.StapleStepStatusCode != after.StapleStepStatusCode {
 		return false
 	}
@@ -388,12 +388,12 @@ func sameOrderProgress(before, after model.Order) bool {
 }
 
 // publishUpserts publishes upsert events for each order item.
-func (s *order) publishUpserts(items []model.Order) {
+func (s *order) publishUpserts(items []domain.Order) {
 	if s.publisher == nil {
 		return
 	}
 	for _, item := range items {
-		s.publisher.Publish(item.WorkspaceID, model.EventOrderUpsert, model.UpsertEvent{
+		s.publisher.Publish(item.WorkspaceID, domain.EventOrderUpsert, domain.UpsertEvent{
 			Item: item.ToDTO(s.location),
 		})
 	}

@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/dongwlin/legero-backend/internal/model"
+import "github.com/dongwlin/legero-backend/internal/domain"
 
 // LoginRequest carries the login credentials.
 type LoginRequest struct {
@@ -40,7 +40,7 @@ type Bootstrap struct {
 	User         AuthUser         `json:"user"`
 	Workspace    Workspace        `json:"workspace"`
 	Permissions  []string         `json:"permissions"`
-	ActiveOrders []model.OrderDTO `json:"activeOrders"`
+	ActiveOrders []domain.OrderDTO `json:"activeOrders"`
 	ServerTime   string           `json:"serverTime"`
 }
 

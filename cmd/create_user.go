@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dongwlin/legero-backend/internal/app"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
@@ -35,7 +35,7 @@ func init() {
 	createUserCmd.Flags().String(flagPassword, "", "login password")
 	createUserCmd.Flags().String(flagWorkspace, "", "workspace name to create when workspace-id is omitted")
 	createUserCmd.Flags().String(flagWorkspaceID, "", "existing workspace id to attach the user to")
-	createUserCmd.Flags().String(flagRole, string(model.RoleOwner), "membership role: owner or staff")
+	createUserCmd.Flags().String(flagRole, string(domain.RoleOwner), "membership role: owner or staff")
 
 	// Mark required flags
 	_ = createUserCmd.MarkFlagRequired(flagPhone)
@@ -78,7 +78,7 @@ func runCreateUser(cmd *cobra.Command) error {
 		Password:    password,
 		WorkspaceID: workspaceID,
 		Workspace:   workspaceName,
-		Role:        model.Role(roleText),
+		Role:        domain.Role(roleText),
 	})
 	if err != nil {
 		return err

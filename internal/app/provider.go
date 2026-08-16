@@ -17,7 +17,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/logger"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/service"
 	servicev1 "github.com/dongwlin/legero-backend/internal/service/v1"
 	"github.com/dongwlin/legero-backend/migrations"
@@ -41,7 +41,7 @@ var ServerProviderSet = wire.NewSet(
 	ProvideAuth,
 	servicev1.NewStats,
 	wire.Bind(new(service.ActiveOrderLoader), new(service.Order)),
-	wire.Bind(new(model.Publisher), new(*realtime.Broker)),
+	wire.Bind(new(domain.Publisher), new(*realtime.Broker)),
 	handler.NewRouter,
 	ProvideHTTPServer,
 	NewApplication,

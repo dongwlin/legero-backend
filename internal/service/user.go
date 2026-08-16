@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -13,7 +13,7 @@ type CreateUserInput struct {
 	Password    string
 	WorkspaceID *uuid.UUID
 	Workspace   string
-	Role        model.Role
+	Role        domain.Role
 }
 
 // CreateUserResult is the result of a successful user creation.
@@ -22,7 +22,7 @@ type CreateUserResult struct {
 	Phone            string
 	WorkspaceID      uuid.UUID
 	WorkspaceName    string
-	Role             model.Role
+	Role             domain.Role
 	CreatedWorkspace bool
 }
 

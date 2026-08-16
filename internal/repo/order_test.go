@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestInsertMany_EmptySlice(t *testing.T) {
 	_, repo := newTestOrderRepo(t, ctx)
 
 	require.NoError(t, repo.InsertMany(ctx, nil))
-	require.NoError(t, repo.InsertMany(ctx, []model.Order{}))
+	require.NoError(t, repo.InsertMany(ctx, []domain.Order{}))
 }
 
 func TestInsertMany_SingleOrder(t *testing.T) {
@@ -31,27 +31,27 @@ func TestInsertMany_SingleOrder(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, tx)
 	userID := createTestUser(t, ctx, tx)
 
-	order := model.Order{
+	order := domain.Order{
 		ID:                   uuid.New(),
 		WorkspaceID:          wsID,
 		DisplayNo:            "T100",
-		SizeCode:             model.SizeSmall,
-		StapleAmountCode:     model.AdjustmentNormal,
-		GreensCode:           model.AdjustmentNormal,
-		ScallionCode:         model.AdjustmentNormal,
-		PepperCode:           model.AdjustmentNormal,
-		DiningMethodCode:     model.DiningMethodDineIn,
-		SelectedMeatCodes:    []int16{model.MeatLeanPork},
+		SizeCode:             domain.SizeSmall,
+		StapleAmountCode:     domain.AdjustmentNormal,
+		GreensCode:           domain.AdjustmentNormal,
+		ScallionCode:         domain.AdjustmentNormal,
+		PepperCode:           domain.AdjustmentNormal,
+		DiningMethodCode:     domain.DiningMethodDineIn,
+		SelectedMeatCodes:    []int16{domain.MeatLeanPork},
 		TotalPriceCents:      1000,
-		StapleStepStatusCode: model.StepStatusUnrequired,
-		MeatStepStatusCode:   model.StepStatusUnrequired,
+		StapleStepStatusCode: domain.StepStatusUnrequired,
+		MeatStepStatusCode:   domain.StepStatusUnrequired,
 		CreatedBy:            userID,
 		UpdatedBy:            userID,
 		CreatedAt:            time.Now(),
 		UpdatedAt:            time.Now(),
 	}
 
-	require.NoError(t, repo.InsertMany(ctx, []model.Order{order}))
+	require.NoError(t, repo.InsertMany(ctx, []domain.Order{order}))
 
 	got, err := repo.GetByID(ctx, wsID, order.ID)
 	require.NoError(t, err)
@@ -68,22 +68,22 @@ func TestInsertMany_MultipleOrders(t *testing.T) {
 	userID := createTestUser(t, ctx, tx)
 
 	count := 5
-	orders := make([]model.Order, count)
+	orders := make([]domain.Order, count)
 	for i := range orders {
-		orders[i] = model.Order{
+		orders[i] = domain.Order{
 			ID:                   uuid.New(),
 			WorkspaceID:          wsID,
 			DisplayNo:            fmt.Sprintf("T%03d", 100+i),
-			SizeCode:             model.SizeSmall,
-			StapleAmountCode:     model.AdjustmentNormal,
-			GreensCode:           model.AdjustmentNormal,
-			ScallionCode:         model.AdjustmentNormal,
-			PepperCode:           model.AdjustmentNormal,
-			DiningMethodCode:     model.DiningMethodDineIn,
-			SelectedMeatCodes:    []int16{model.MeatLeanPork},
+			SizeCode:             domain.SizeSmall,
+			StapleAmountCode:     domain.AdjustmentNormal,
+			GreensCode:           domain.AdjustmentNormal,
+			ScallionCode:         domain.AdjustmentNormal,
+			PepperCode:           domain.AdjustmentNormal,
+			DiningMethodCode:     domain.DiningMethodDineIn,
+			SelectedMeatCodes:    []int16{domain.MeatLeanPork},
 			TotalPriceCents:      1000,
-			StapleStepStatusCode: model.StepStatusUnrequired,
-			MeatStepStatusCode:   model.StepStatusUnrequired,
+			StapleStepStatusCode: domain.StepStatusUnrequired,
+			MeatStepStatusCode:   domain.StepStatusUnrequired,
 			CreatedBy:            userID,
 			UpdatedBy:            userID,
 			CreatedAt:            time.Now().Add(time.Duration(i) * time.Second),
@@ -105,26 +105,26 @@ func TestInsertMany_InvalidFK(t *testing.T) {
 	_, repo := newTestOrderRepo(t, ctx)
 
 	badWorkspaceID := uuid.New()
-	order := model.Order{
+	order := domain.Order{
 		ID:                   uuid.New(),
 		WorkspaceID:          badWorkspaceID,
 		DisplayNo:            "T999",
-		SizeCode:             model.SizeSmall,
-		StapleAmountCode:     model.AdjustmentNormal,
-		GreensCode:           model.AdjustmentNormal,
-		ScallionCode:         model.AdjustmentNormal,
-		PepperCode:           model.AdjustmentNormal,
-		DiningMethodCode:     model.DiningMethodDineIn,
+		SizeCode:             domain.SizeSmall,
+		StapleAmountCode:     domain.AdjustmentNormal,
+		GreensCode:           domain.AdjustmentNormal,
+		ScallionCode:         domain.AdjustmentNormal,
+		PepperCode:           domain.AdjustmentNormal,
+		DiningMethodCode:     domain.DiningMethodDineIn,
 		TotalPriceCents:      1000,
-		StapleStepStatusCode: model.StepStatusUnrequired,
-		MeatStepStatusCode:   model.StepStatusUnrequired,
+		StapleStepStatusCode: domain.StepStatusUnrequired,
+		MeatStepStatusCode:   domain.StepStatusUnrequired,
 		CreatedBy:            badWorkspaceID,
 		UpdatedBy:            badWorkspaceID,
 		CreatedAt:            time.Now(),
 		UpdatedAt:            time.Now(),
 	}
 
-	err := repo.InsertMany(ctx, []model.Order{order})
+	err := repo.InsertMany(ctx, []domain.Order{order})
 	require.Error(t, err)
 }
 
@@ -138,7 +138,7 @@ func TestGetByID_Found(t *testing.T) {
 
 	wsID := createTestWorkspace(t, ctx, tx)
 	userID := createTestUser(t, ctx, tx)
-	created := createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	created := createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "T500"
 		o.TotalPriceCents = 2500
 	})
@@ -190,7 +190,7 @@ func TestList_StatusUncompleted(t *testing.T) {
 	userID := createTestUser(t, ctx, tx)
 
 	// Uncompleted order (no CompletedAt).
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "U001"
 		o.CreatedAt = time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
 		o.CompletedAt = nil
@@ -198,14 +198,14 @@ func TestList_StatusUncompleted(t *testing.T) {
 
 	// Completed order.
 	completedAt := time.Date(2025, 1, 1, 11, 0, 0, 0, time.UTC)
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "C001"
 		o.CreatedAt = time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
 		o.CompletedAt = &completedAt
 	})
 
-	orders, cursor, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusUncompleted,
+	orders, cursor, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusUncompleted,
 		Limit:  50,
 	})
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestList_StatusCompleted(t *testing.T) {
 	userID := createTestUser(t, ctx, tx)
 
 	// Uncompleted.
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "U001"
 		o.CreatedAt = time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
 		o.CompletedAt = nil
@@ -230,14 +230,14 @@ func TestList_StatusCompleted(t *testing.T) {
 
 	// Completed.
 	completedAt := time.Date(2025, 1, 1, 11, 0, 0, 0, time.UTC)
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "C001"
 		o.CreatedAt = time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
 		o.CompletedAt = &completedAt
 	})
 
-	orders, cursor, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusCompleted,
+	orders, cursor, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusCompleted,
 		Limit:  50,
 	})
 	require.NoError(t, err)
@@ -256,24 +256,24 @@ func TestList_StatusAll(t *testing.T) {
 	now := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	completedAt := now.Add(time.Hour)
 
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "U001"
 		o.CreatedAt = now
 		o.CompletedAt = nil
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "C001"
 		o.CreatedAt = now.Add(time.Minute)
 		o.CompletedAt = &completedAt
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "U002"
 		o.CreatedAt = now.Add(2 * time.Minute)
 		o.CompletedAt = nil
 	})
 
-	orders, cursor, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusAll,
+	orders, cursor, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusAll,
 		Limit:  50,
 	})
 	require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestList_Pagination(t *testing.T) {
 
 	base := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	for i := 0; i < 5; i++ {
-		createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+		createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 			o.DisplayNo = fmt.Sprintf("T%03d", i)
 			o.CreatedAt = base.Add(time.Duration(i) * time.Minute)
 			o.CompletedAt = nil
@@ -300,8 +300,8 @@ func TestList_Pagination(t *testing.T) {
 	}
 
 	// First page: limit=2, uncompleted (ordered by created_at ASC).
-	page1, cursor1, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusUncompleted,
+	page1, cursor1, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusUncompleted,
 		Limit:  2,
 	})
 	require.NoError(t, err)
@@ -310,8 +310,8 @@ func TestList_Pagination(t *testing.T) {
 	require.Equal(t, "T000", page1[0].DisplayNo)
 
 	// Second page using cursor.
-	page2, cursor2, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusUncompleted,
+	page2, cursor2, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusUncompleted,
 		Limit:  2,
 		Cursor: *cursor1,
 	})
@@ -321,8 +321,8 @@ func TestList_Pagination(t *testing.T) {
 	require.Equal(t, "T002", page2[0].DisplayNo)
 
 	// Third page: remaining orders.
-	page3, cursor3, err := repo.List(ctx, wsID, model.ListOrdersQuery{
-		Status: model.ListStatusUncompleted,
+	page3, cursor3, err := repo.List(ctx, wsID, domain.ListOrdersQuery{
+		Status: domain.ListStatusUncompleted,
 		Limit:  2,
 		Cursor: *cursor2,
 	})
@@ -340,24 +340,24 @@ func TestList_LimitClamping(t *testing.T) {
 
 	base := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	for i := 0; i < 3; i++ {
-		createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+		createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 			o.DisplayNo = fmt.Sprintf("L%03d", i)
 			o.CreatedAt = base.Add(time.Duration(i) * time.Minute)
 		})
 	}
 
 	// limit=0 should clamp to 50, no error.
-	orders, _, err := repo.List(ctx, wsID, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 0})
+	orders, _, err := repo.List(ctx, wsID, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 0})
 	require.NoError(t, err)
 	require.Len(t, orders, 3)
 
 	// limit=300 should clamp to 200, no error.
-	orders, _, err = repo.List(ctx, wsID, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 300})
+	orders, _, err = repo.List(ctx, wsID, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 300})
 	require.NoError(t, err)
 	require.Len(t, orders, 3)
 
 	// Negative limit should clamp to 50, no error.
-	orders, _, err = repo.List(ctx, wsID, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: -1})
+	orders, _, err = repo.List(ctx, wsID, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: -1})
 	require.NoError(t, err)
 	require.Len(t, orders, 3)
 }
@@ -368,7 +368,7 @@ func TestList_InvalidStatus(t *testing.T) {
 
 	wsID := createTestWorkspace(t, ctx, tx)
 
-	_, _, err := repo.List(ctx, wsID, model.ListOrdersQuery{Status: "bogus", Limit: 50})
+	_, _, err := repo.List(ctx, wsID, domain.ListOrdersQuery{Status: "bogus", Limit: 50})
 	require.Error(t, err)
 }
 
@@ -380,19 +380,19 @@ func TestList_WorkspaceIsolation(t *testing.T) {
 	wsID2 := createTestWorkspace(t, ctx, tx)
 	userID := createTestUser(t, ctx, tx)
 
-	createTestOrder(t, ctx, tx, wsID1, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID1, userID, func(o *domain.Order) {
 		o.DisplayNo = "WS1-001"
 	})
-	createTestOrder(t, ctx, tx, wsID2, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID2, userID, func(o *domain.Order) {
 		o.DisplayNo = "WS2-001"
 	})
 
-	orders1, _, err := repo.List(ctx, wsID1, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 50})
+	orders1, _, err := repo.List(ctx, wsID1, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 50})
 	require.NoError(t, err)
 	require.Len(t, orders1, 1)
 	require.Equal(t, "WS1-001", orders1[0].DisplayNo)
 
-	orders2, _, err := repo.List(ctx, wsID2, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 50})
+	orders2, _, err := repo.List(ctx, wsID2, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 50})
 	require.NoError(t, err)
 	require.Len(t, orders2, 1)
 	require.Equal(t, "WS2-001", orders2[0].DisplayNo)
@@ -413,17 +413,17 @@ func TestListActive_OnlyUncompleted(t *testing.T) {
 	completedAt := base.Add(time.Hour)
 
 	// Two uncompleted, one completed.
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "A001"
 		o.CreatedAt = base
 		o.CompletedAt = nil
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "A002"
 		o.CreatedAt = base.Add(time.Minute)
 		o.CompletedAt = nil
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "C001"
 		o.CreatedAt = base.Add(2 * time.Minute)
 		o.CompletedAt = &completedAt
@@ -502,20 +502,20 @@ func TestUpdate_NonExistentID(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, tx)
 	userID := createTestUser(t, ctx, tx)
 
-	fakeOrder := &model.Order{
+	fakeOrder := &domain.Order{
 		ID:                   uuid.New(),
 		WorkspaceID:          wsID,
 		DisplayNo:            "FAKE-001",
-		SizeCode:             model.SizeSmall,
-		StapleAmountCode:     model.AdjustmentNormal,
-		GreensCode:           model.AdjustmentNormal,
-		ScallionCode:         model.AdjustmentNormal,
-		PepperCode:           model.AdjustmentNormal,
-		DiningMethodCode:     model.DiningMethodDineIn,
-		SelectedMeatCodes:    []int16{model.MeatLeanPork},
+		SizeCode:             domain.SizeSmall,
+		StapleAmountCode:     domain.AdjustmentNormal,
+		GreensCode:           domain.AdjustmentNormal,
+		ScallionCode:         domain.AdjustmentNormal,
+		PepperCode:           domain.AdjustmentNormal,
+		DiningMethodCode:     domain.DiningMethodDineIn,
+		SelectedMeatCodes:    []int16{domain.MeatLeanPork},
 		TotalPriceCents:      1000,
-		StapleStepStatusCode: model.StepStatusUnrequired,
-		MeatStepStatusCode:   model.StepStatusUnrequired,
+		StapleStepStatusCode: domain.StepStatusUnrequired,
+		MeatStepStatusCode:   domain.StepStatusUnrequired,
 		CreatedBy:            userID,
 		UpdatedBy:            userID,
 		CreatedAt:            time.Now(),
@@ -590,11 +590,11 @@ func TestClearWorkspace_All(t *testing.T) {
 	wsID := createTestWorkspace(t, ctx, tx)
 	userID := createTestUser(t, ctx, tx)
 
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "CLR-001"
 		o.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "CLR-002"
 		o.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	})
@@ -603,7 +603,7 @@ func TestClearWorkspace_All(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, deleted)
 
-	orders, _, err := repo.List(ctx, wsID, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 50})
+	orders, _, err := repo.List(ctx, wsID, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 50})
 	require.NoError(t, err)
 	require.Len(t, orders, 0)
 }
@@ -619,11 +619,11 @@ func TestClearWorkspace_WithCreatedBefore(t *testing.T) {
 	newDate := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	cutoff := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
 
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "OLD-001"
 		o.CreatedAt = oldDate
 	})
-	createTestOrder(t, ctx, tx, wsID, userID, func(o *model.Order) {
+	createTestOrder(t, ctx, tx, wsID, userID, func(o *domain.Order) {
 		o.DisplayNo = "NEW-001"
 		o.CreatedAt = newDate
 	})
@@ -632,7 +632,7 @@ func TestClearWorkspace_WithCreatedBefore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, deleted)
 
-	orders, _, err := repo.List(ctx, wsID, model.ListOrdersQuery{Status: model.ListStatusAll, Limit: 50})
+	orders, _, err := repo.List(ctx, wsID, domain.ListOrdersQuery{Status: domain.ListStatusAll, Limit: 50})
 	require.NoError(t, err)
 	require.Len(t, orders, 1)
 	require.Equal(t, "NEW-001", orders[0].DisplayNo)

@@ -11,7 +11,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/infra/timex"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
@@ -95,8 +95,8 @@ func AuthContext(c *gin.Context) (*identity.Context, bool) {
 	return authCtx, ok
 }
 
-// toTokenPairDTO converts a model.TokenPair into its API representation.
-func toTokenPairDTO(pair model.TokenPair, location *time.Location) dto.TokenPair {
+// toTokenPairDTO converts a domain.TokenPair into its API representation.
+func toTokenPairDTO(pair domain.TokenPair, location *time.Location) dto.TokenPair {
 	return dto.TokenPair{
 		AccessToken:           pair.AccessToken,
 		TokenType:             "Bearer",
@@ -106,8 +106,8 @@ func toTokenPairDTO(pair model.TokenPair, location *time.Location) dto.TokenPair
 	}
 }
 
-// toBootstrapDTO converts a model.BootstrapData into its API representation.
-func toBootstrapDTO(data model.BootstrapData, location *time.Location) dto.Bootstrap {
+// toBootstrapDTO converts a domain.BootstrapData into its API representation.
+func toBootstrapDTO(data domain.BootstrapData, location *time.Location) dto.Bootstrap {
 	return dto.Bootstrap{
 		User: dto.AuthUser{
 			ID:    data.User.ID.String(),

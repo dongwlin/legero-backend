@@ -1,23 +1,20 @@
-package model
+package domain
 
 import (
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 )
 
-// User is the unified domain + ORM model for the users table.
+// User is the domain model for a registered user.
 type User struct {
-	bun.BaseModel `bun:"table:users,alias:u"`
-
-	ID           uuid.UUID `bun:",pk,type:uuid"`
-	Phone        string    `bun:"phone,notnull"`
-	PasswordHash string    `bun:"password_hash,notnull"`
-	IsActive     bool      `bun:"is_active,notnull"`
-	CreatedAt    time.Time `bun:"created_at,notnull"`
-	UpdatedAt    time.Time `bun:"updated_at,notnull"`
+	ID           uuid.UUID
+	Phone        string
+	PasswordHash string
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // NormalizePhone strips non-digits and removes a leading "86" country code

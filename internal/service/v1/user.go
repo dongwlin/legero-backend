@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
-	"github.com/dongwlin/legero-backend/internal/model"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -31,7 +31,7 @@ func NewUser(database *bun.DB, hasher *crypto.PasswordHasher) service.User {
 
 // CreateUser creates a new user and optionally a new workspace, all within a single transaction.
 func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*service.CreateUserResult, error) {
-	normalizedPhone := model.NormalizePhone(input.Phone)
+	normalizedPhone := domain.NormalizePhone(input.Phone)
 	if normalizedPhone == "" {
 		return nil, fmt.Errorf("phone is required")
 	}
@@ -39,9 +39,9 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 		return nil, fmt.Errorf("password is required")
 	}
 	if input.Role == "" {
-		input.Role = model.RoleOwner
+		input.Role = domain.RoleOwner
 	}
-	if input.Role != model.RoleOwner && input.Role != model.RoleStaff {
+	if input.Role != domain.RoleOwner && input.Role != domain.RoleStaff {
 		return nil, fmt.Errorf("role must be owner or staff")
 	}
 	if input.WorkspaceID == nil {
@@ -83,7 +83,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 			result.WorkspaceName = input.Workspace
 			result.CreatedWorkspace = true
 
-			workspaceModel := &model.Workspace{
+			workspaceModel := &domain.Workspace{
 				ID:        result.WorkspaceID,
 				Name:      result.WorkspaceName,
 				CreatedAt: now,
@@ -106,7 +106,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 			result.WorkspaceName = workspaceModel.Name
 		}
 
-		userModel := &model.User{
+		userModel := &domain.User{
 			ID:           result.UserID,
 			Phone:        result.Phone,
 			PasswordHash: passwordHash,
@@ -118,7 +118,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 			return fmt.Errorf("insert user: %w", err)
 		}
 
-		memberModel := &model.WorkspaceMember{
+		memberModel := &domain.WorkspaceMember{
 			WorkspaceID: result.WorkspaceID,
 			UserID:      result.UserID,
 			Role:        string(result.Role),
