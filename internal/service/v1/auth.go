@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 )

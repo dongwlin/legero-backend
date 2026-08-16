@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/repo/schema"
 	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/dongwlin/legero-backend/migrations"

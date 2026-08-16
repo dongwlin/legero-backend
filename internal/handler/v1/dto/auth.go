@@ -37,11 +37,11 @@ type TokenPair struct {
 
 // Bootstrap is the full bootstrap payload returned after login.
 type Bootstrap struct {
-	User         AuthUser         `json:"user"`
-	Workspace    Workspace        `json:"workspace"`
-	Permissions  []string         `json:"permissions"`
+	User         AuthUser          `json:"user"`
+	Workspace    Workspace         `json:"workspace"`
+	Permissions  []string          `json:"permissions"`
 	ActiveOrders []domain.OrderDTO `json:"activeOrders"`
-	ServerTime   string           `json:"serverTime"`
+	ServerTime   string            `json:"serverTime"`
 }
 
 // LoginResponse flattens the token pair and bootstrap payload into one response.

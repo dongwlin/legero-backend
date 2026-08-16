@@ -5,7 +5,7 @@ import "github.com/dongwlin/legero-backend/internal/domain"
 // ListOrdersResponse is the paginated order list.
 type ListOrdersResponse struct {
 	Items      []domain.OrderDTO `json:"items"`
-	NextCursor *string          `json:"nextCursor"`
+	NextCursor *string           `json:"nextCursor"`
 }
 
 // CreateOrdersResponse is the batch-create result.

@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/google/uuid"
 )
 
