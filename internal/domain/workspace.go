@@ -23,6 +23,7 @@ func (r Role) Valid() bool {
 type Workspace struct {
 	ID        uuid.UUID
 	Name      string
+	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -130,6 +130,7 @@ func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
 		PasswordHash: crypto.MustHashForTests("password123"),
 		IsActive:     true,
+		Version:      1,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

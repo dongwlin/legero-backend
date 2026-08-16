@@ -62,6 +62,7 @@ func TestUserRepo_GetByID_Found(t *testing.T) {
 	require.Equal(t, "13900139000", got.Phone)
 	require.False(t, got.IsActive)
 	require.NotEmpty(t, got.PasswordHash)
+	require.Equal(t, int64(1), got.Version)
 }
 
 func TestUserRepo_GetByID_NotFound(t *testing.T) {
@@ -86,6 +87,7 @@ func TestUserRepo_Insert(t *testing.T) {
 		Phone:        "13800138001",
 		PasswordHash: "hash",
 		IsActive:     true,
+		Version:      1,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -195,6 +197,8 @@ func TestRefreshTokenRepo_Rotate(t *testing.T) {
 	require.NotNil(t, got.RotatedAt)
 	require.NotNil(t, got.ReplacedByID)
 	require.Equal(t, replacement.ID, *got.ReplacedByID)
+	// Rotation is a state-changing mutation: the version advances 1 -> 2.
+	require.Equal(t, int64(2), got.Version)
 }
 
 func TestRefreshTokenRepo_Rotate_NotFound(t *testing.T) {

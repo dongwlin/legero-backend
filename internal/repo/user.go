@@ -68,6 +68,7 @@ func toSchemaUser(u *domain.User) *schema.User {
 		Phone:        u.Phone,
 		PasswordHash: u.PasswordHash,
 		IsActive:     u.IsActive,
+		Version:      u.Version,
 		CreatedAt:    u.CreatedAt,
 		UpdatedAt:    u.UpdatedAt,
 	}
@@ -79,6 +80,7 @@ func toDomainUser(s *schema.User) *domain.User {
 		Phone:        s.Phone,
 		PasswordHash: s.PasswordHash,
 		IsActive:     s.IsActive,
+		Version:      s.Version,
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}

@@ -72,6 +72,7 @@ func (r *Workspace) Insert(ctx context.Context, workspace *domain.Workspace) err
 	s := &schema.Workspace{
 		ID:        workspace.ID,
 		Name:      workspace.Name,
+		Version:   workspace.Version,
 		CreatedAt: workspace.CreatedAt,
 		UpdatedAt: workspace.UpdatedAt,
 	}
@@ -98,6 +99,7 @@ func (r *Workspace) GetByID(ctx context.Context, workspaceID uuid.UUID) (*domain
 	return &domain.Workspace{
 		ID:        s.ID,
 		Name:      s.Name,
+		Version:   s.Version,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,
 	}, nil

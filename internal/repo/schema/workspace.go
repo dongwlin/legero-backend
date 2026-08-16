@@ -13,6 +13,7 @@ type Workspace struct {
 
 	ID        uuid.UUID `bun:",pk,type:uuid"`
 	Name      string    `bun:"name,notnull"`
+	Version   int64     `bun:"version,notnull"`
 	CreatedAt time.Time `bun:"created_at,notnull"`
 	UpdatedAt time.Time `bun:"updated_at,notnull"`
 }

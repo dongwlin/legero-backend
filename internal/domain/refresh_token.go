@@ -13,6 +13,7 @@ type RefreshToken struct {
 	WorkspaceID  uuid.UUID
 	TokenHash    string
 	ExpiresAt    time.Time
+	Version      int64
 	CreatedAt    time.Time
 	RotatedAt    *time.Time
 	RevokedAt    *time.Time

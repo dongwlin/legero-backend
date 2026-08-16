@@ -15,6 +15,7 @@ type User struct {
 	Phone        string    `bun:"phone,notnull"`
 	PasswordHash string    `bun:"password_hash,notnull"`
 	IsActive     bool      `bun:"is_active,notnull"`
+	Version      int64     `bun:"version,notnull"`
 	CreatedAt    time.Time `bun:"created_at,notnull"`
 	UpdatedAt    time.Time `bun:"updated_at,notnull"`
 }

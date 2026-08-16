@@ -144,6 +144,7 @@ func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
 		PasswordHash: "$argon2id$v=19$m=65536,t=3,p=2$c2FsdHNhbHRzYWx0$hash",
 		IsActive:     true,
+		Version:      1,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -195,6 +196,7 @@ func createTestRefreshToken(t *testing.T, ctx context.Context, db bun.IDB, userI
 		WorkspaceID: workspaceID,
 		TokenHash:   fmt.Sprintf("hash-%s", uuid.New().String()),
 		ExpiresAt:   time.Now().Add(7 * 24 * time.Hour),
+		Version:     1,
 		CreatedAt:   time.Now(),
 	}
 
@@ -208,6 +210,7 @@ func createTestRefreshToken(t *testing.T, ctx context.Context, db bun.IDB, userI
 		WorkspaceID:  token.WorkspaceID,
 		TokenHash:    token.TokenHash,
 		ExpiresAt:    token.ExpiresAt,
+		Version:      token.Version,
 		CreatedAt:    token.CreatedAt,
 		RotatedAt:    token.RotatedAt,
 		RevokedAt:    token.RevokedAt,

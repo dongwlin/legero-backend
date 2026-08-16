@@ -86,6 +86,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 			workspaceModel := &domain.Workspace{
 				ID:        result.WorkspaceID,
 				Name:      result.WorkspaceName,
+				Version:   1,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
@@ -111,6 +112,7 @@ func (s *user) CreateUser(ctx context.Context, input service.CreateUserInput) (*
 			Phone:        result.Phone,
 			PasswordHash: passwordHash,
 			IsActive:     true,
+			Version:      1,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}

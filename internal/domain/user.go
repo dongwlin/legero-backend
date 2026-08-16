@@ -13,6 +13,7 @@ type User struct {
 	Phone        string
 	PasswordHash string
 	IsActive     bool
+	Version      int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

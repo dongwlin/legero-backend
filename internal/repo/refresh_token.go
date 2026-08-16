@@ -29,6 +29,7 @@ func (r *RefreshToken) Insert(ctx context.Context, token *domain.RefreshToken) e
 		WorkspaceID:  token.WorkspaceID,
 		TokenHash:    token.TokenHash,
 		ExpiresAt:    token.ExpiresAt,
+		Version:      token.Version,
 		CreatedAt:    token.CreatedAt,
 		RotatedAt:    token.RotatedAt,
 		RevokedAt:    token.RevokedAt,
@@ -63,6 +64,7 @@ func (r *RefreshToken) GetByHash(ctx context.Context, tokenHash string, forUpdat
 		WorkspaceID:  s.WorkspaceID,
 		TokenHash:    s.TokenHash,
 		ExpiresAt:    s.ExpiresAt,
+		Version:      s.Version,
 		CreatedAt:    s.CreatedAt,
 		RotatedAt:    s.RotatedAt,
 		RevokedAt:    s.RevokedAt,
@@ -75,6 +77,7 @@ func (r *RefreshToken) Rotate(ctx context.Context, tokenID, replacementID uuid.U
 		Model((*schema.RefreshToken)(nil)).
 		Set("rotated_at = ?", rotatedAt).
 		Set("replaced_by_id = ?", replacementID).
+		Set("version = version + 1").
 		Where("id = ?", tokenID).
 		Exec(ctx)
 	if err != nil {
