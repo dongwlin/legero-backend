@@ -1,4 +1,4 @@
-package httpx
+package httpresp
 
 import "github.com/gin-gonic/gin"
 

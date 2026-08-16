@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
-	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/internal/infra/timex"
 )
@@ -77,17 +77,17 @@ func NewRealtimeHandler(
 func (h *Realtime) CreateSession(c *gin.Context) {
 	authCtx, ok := AuthContext(c)
 	if !ok {
-		httpx.AbortError(c, httpx.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
 		return
 	}
 
 	ticket, expiresAt, err := h.sessions.Issue(authCtx)
 	if err != nil {
-		httpx.AbortError(c, err)
+		httpresp.AbortError(c, err)
 		return
 	}
 
-	httpx.JSON(c, http.StatusOK, dto.CreateSessionResponse{
+	httpresp.JSON(c, http.StatusOK, dto.CreateSessionResponse{
 		Ticket:    ticket,
 		ExpiresAt: timex.FormatTime(expiresAt, h.location),
 	})
@@ -97,13 +97,13 @@ func (h *Realtime) CreateSession(c *gin.Context) {
 func (h *Realtime) ServeWS(c *gin.Context) {
 	ticket := strings.TrimSpace(c.Query("ticket"))
 	if ticket == "" {
-		httpx.AbortError(c, httpx.ValidationError("ticket is required"))
+		httpresp.AbortError(c, httpresp.ValidationError("ticket is required"))
 		return
 	}
 
 	authCtx, err := h.sessions.Consume(ticket)
 	if err != nil {
-		httpx.AbortError(c, err)
+		httpresp.AbortError(c, err)
 		return
 	}
 

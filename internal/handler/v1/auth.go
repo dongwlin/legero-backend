@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
-	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/infra/timex"
 	"github.com/dongwlin/legero-backend/internal/model"
@@ -29,7 +29,7 @@ func NewAuthHandler(authSvc service.Auth, location *time.Location) *AuthHandler 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.AbortError(c, httpx.ValidationError("invalid login payload"))
+		httpresp.AbortError(c, httpresp.ValidationError("invalid login payload"))
 		return
 	}
 
@@ -38,11 +38,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		httpx.AbortError(c, err)
+		httpresp.AbortError(c, err)
 		return
 	}
 
-	httpx.JSON(c, http.StatusOK, dto.LoginResponse{
+	httpresp.JSON(c, http.StatusOK, dto.LoginResponse{
 		TokenPair: toTokenPairDTO(result.TokenPair, h.location),
 		Bootstrap: toBootstrapDTO(result.Bootstrap, h.location),
 	})
@@ -52,34 +52,34 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req dto.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.AbortError(c, httpx.ValidationError("invalid refresh payload"))
+		httpresp.AbortError(c, httpresp.ValidationError("invalid refresh payload"))
 		return
 	}
 
 	pair, err := h.authSvc.Refresh(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		httpx.AbortError(c, err)
+		httpresp.AbortError(c, err)
 		return
 	}
 
-	httpx.JSON(c, http.StatusOK, toTokenPairDTO(*pair, h.location))
+	httpresp.JSON(c, http.StatusOK, toTokenPairDTO(*pair, h.location))
 }
 
 // Bootstrap returns the full bootstrap payload for an already-authenticated user.
 func (h *AuthHandler) Bootstrap(c *gin.Context) {
 	authCtx, ok := AuthContext(c)
 	if !ok {
-		httpx.AbortError(c, httpx.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
 		return
 	}
 
 	data, err := h.authSvc.Bootstrap(c.Request.Context(), authCtx)
 	if err != nil {
-		httpx.AbortError(c, err)
+		httpresp.AbortError(c, err)
 		return
 	}
 
-	httpx.JSON(c, http.StatusOK, dto.BootstrapResponse{
+	httpresp.JSON(c, http.StatusOK, dto.BootstrapResponse{
 		Bootstrap: toBootstrapDTO(*data, h.location),
 	})
 }

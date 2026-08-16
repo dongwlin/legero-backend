@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
-	"github.com/dongwlin/legero-backend/internal/infra/httpx"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/model"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -213,7 +213,7 @@ func TestLogin_InvalidPhone(t *testing.T) {
 	_, err := svc.Login(ctx, service.LoginRequest{Phone: "00000000000", Password: "password123"})
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -230,7 +230,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001002", Password: "wrongpassword"})
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -247,7 +247,7 @@ func TestLogin_InactiveUser(t *testing.T) {
 	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001003", Password: "password123"})
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -265,7 +265,7 @@ func TestLogin_NoWorkspace(t *testing.T) {
 	_, err := svc.Login(ctx, service.LoginRequest{Phone: "13800001004", Password: "password123"})
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 404, appErr.Status)
 }
@@ -340,7 +340,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	_, err = svc.Refresh(ctx, loginResult.TokenPair.RefreshToken)
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -372,7 +372,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	_, err = svc.Refresh(ctx, loginResult.TokenPair.RefreshToken)
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -434,7 +434,7 @@ func TestBootstrap_InactiveUser(t *testing.T) {
 	_, err := svc.Bootstrap(ctx, authCtx)
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 401, appErr.Status)
 }
@@ -457,7 +457,7 @@ func TestBootstrap_NoWorkspace(t *testing.T) {
 	_, err := svc.Bootstrap(ctx, authCtx)
 	require.Error(t, err)
 
-	var appErr *httpx.AppError
+	var appErr *httpresp.AppError
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, 404, appErr.Status)
 }
