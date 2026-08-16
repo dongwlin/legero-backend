@@ -6,7 +6,7 @@
 * `cmd/` holds cobra commands only; all bootstrap goes through the wire injectors in `internal/app` (`InitializeApplication`, `InitializeUserCreator`), which return a cleanup function for closing resources.
 * `internal/app` is the composition root. Providers live in `internal/app/provider.go`, injectors in `internal/app/wire.go`, and generated code in `internal/app/wire_gen.go` (regenerate with `wire ./internal/app` or `go generate`). Services, handlers, and the router are wired here and nowhere else.
 * Dependencies flow one way: `handler → service → repo`, with `model` shared by all layers; gin middleware lives in `internal/handler/middleware` and only depends on `service`/`infra`. Never import `handler` from `service`, `service` from `repo`, or `internal/app` from `internal/infra`.
-* Cross-cutting concerns (config, crypto, database, httpx, identity, logger, realtime, shutdown, timex) live in `internal/infra` and must not import domain packages.
+* Cross-cutting concerns (config, crypto, database, identity, logger, realtime, shutdown, timex) live in `internal/infra` and must not import domain packages; HTTP response/error helpers live in `internal/handler/httpresp`.
 
 ## Models & Domain Logic
 
@@ -18,9 +18,9 @@
 
 ## Errors
 
-* Surface failures as `*httpx.AppError`: HTTP status + stable machine code + user-facing message + optional cause.
-* Use the constructors in `internal/infra/httpx`: `NewError`/`WrapError` and the helpers `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `InternalError`.
-* Render errors in handlers with `httpx.AbortError(c, err)`. Non-`AppError` errors become a generic `internal_error` 500, so wrap expected failures explicitly.
+* Surface failures as `*httpresp.AppError`: HTTP status + stable machine code + user-facing message + optional cause.
+* Use the constructors in `internal/handler/httpresp`: `NewError`/`WrapError` and the helpers `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `InternalError`.
+* Render errors in handlers with `httpresp.AbortError(c, err)`. Non-`AppError` errors become a generic `internal_error` 500, so wrap expected failures explicitly.
 * Translate sentinels from `model/errors.go` into an `AppError` at the service boundary rather than leaking them raw to the API.
 
 ## Time, Money & Formatting
