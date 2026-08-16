@@ -629,9 +629,10 @@ func TestUpdate_NonExistentID(t *testing.T) {
 }
 
 // TestUpdate_AdvancesVersionAtomically verifies that every successful update
-// bumps the monotonic version exactly once, even when the caller's in-memory
-// version is stale, and that two consecutive updates within the same second
-// still produce distinguishable versions.
+// bumps the monotonic version exactly once via the DB-side
+// `version = version + 1` expression (independent of the value the caller
+// carried in memory), and that two consecutive updates within the same
+// second still produce distinguishable versions.
 func TestUpdate_AdvancesVersionAtomically(t *testing.T) {
 	ctx := context.Background()
 	tx, repo := newTestOrderRepo(t, ctx)
