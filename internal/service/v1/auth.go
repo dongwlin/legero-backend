@@ -87,6 +87,11 @@ func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*domain.Log
 	if access == nil {
 		return nil, apperr.NotFoundError("workspace_not_found", "workspace not found")
 	}
+	if !access.Role.Valid() {
+		// Fail closed before loading orders or issuing tokens: an unknown role
+		// must not receive any workspace data or be able to mint usable tokens.
+		return nil, apperr.ForbiddenError("invalid workspace role")
+	}
 
 	activeOrders, err := s.orders.ListActive(ctx, access.WorkspaceID)
 	if err != nil {
@@ -160,6 +165,11 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*domain.Tok
 		if access == nil {
 			return apperr.NotFoundError("workspace_not_found", "workspace not found")
 		}
+		if !access.Role.Valid() {
+			// Fail closed before issuing a replacement pair: an unknown role
+			// would otherwise produce tokens that can never be parsed back.
+			return apperr.ForbiddenError("invalid workspace role")
+		}
 
 		var replacementRecord domain.RefreshToken
 		pair, replacementRecord, err = s.issueTokenPair(now, claims.UserID, access)
@@ -199,6 +209,11 @@ func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*domai
 	}
 	if access == nil {
 		return nil, apperr.NotFoundError("workspace_not_found", "workspace not found")
+	}
+	if !access.Role.Valid() {
+		// Fail closed before loading orders: an unknown role must not receive
+		// any workspace data even if a token with that role was somehow issued.
+		return nil, apperr.ForbiddenError("invalid workspace role")
 	}
 
 	activeOrders, err := s.orders.ListActive(ctx, access.WorkspaceID)
