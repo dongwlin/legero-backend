@@ -390,12 +390,17 @@ func checkExpectedVersion(current domain.Order, expected *int64) error {
 	return nil
 }
 
-// checkExpectedUpdatedAt enforces optimistic concurrency on order updates.
+// checkExpectedUpdatedAt enforces optimistic concurrency on order updates
+// using the deprecated expectedUpdatedAt token. The token is compared at the
+// precision the API actually exposes: OrderDTO.UpdatedAt is formatted with
+// time.RFC3339, which has no fractional seconds, so both sides are truncated
+// to the second before comparing. Sub-second concurrent writes are handled by
+// the monotonic version (expectedVersion) instead of this fallback.
 func checkExpectedUpdatedAt(current domain.Order, expected *time.Time) error {
 	if expected == nil {
 		return nil
 	}
-	if !current.UpdatedAt.Equal(*expected) {
+	if !current.UpdatedAt.Truncate(time.Second).Equal(expected.Truncate(time.Second)) {
 		return orderConflictError()
 	}
 	return nil

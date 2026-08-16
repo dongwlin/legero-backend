@@ -164,11 +164,11 @@ func TestUpdateForm_ExpectedVersionSuccess(t *testing.T) {
 	require.Equal(t, int64(2), updated.Version)
 }
 
-// TestUpdateForm_LegacyExpectedUpdatedAt verifies backward compatibility: the
-// deprecated expectedUpdatedAt token still rejects stale writes when no
-// expectedVersion is provided. The token must come from the DB round-trip,
-// since the in-memory timestamp carries nanosecond precision that Postgres
-// truncates to microseconds.
+// TestUpdateForm_LegacyExpectedUpdatedAt verifies backward compatibility of
+// the deprecated expectedUpdatedAt token: a token built exactly the way a
+// legacy client produces one — parsed back from OrderDTO.UpdatedAt, which is
+// RFC3339 without fractional seconds — still passes the optimistic-concurrency
+// check, while a stale token is still rejected with a conflict.
 func TestUpdateForm_LegacyExpectedUpdatedAt(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestOrderService(t)
@@ -181,19 +181,28 @@ func TestUpdateForm_LegacyExpectedUpdatedAt(t *testing.T) {
 	fresh, err := repo.NewOrder(testDB).GetByID(ctx, wsID, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
-	legacyToken := fresh.UpdatedAt
 
-	// A write carrying the current UpdatedAt succeeds...
+	// A real client never sees the DB timestamp directly: it only sees the
+	// DTO, whose UpdatedAt is RFC3339 at second precision. Replay that exact
+	// HTTP round trip instead of taking the DB model's UpdatedAt verbatim.
+	token, err := time.Parse(time.RFC3339, fresh.ToDTO(time.UTC).UpdatedAt)
+	require.NoError(t, err)
+
+	// A write carrying the current DTO token succeeds...
 	_, err = svc.UpdateForm(ctx, ownerActor(userID, wsID), created.ID, domain.UpdateOrderInput{
 		Form:              validOrderForm(),
-		ExpectedUpdatedAt: &legacyToken,
+		ExpectedUpdatedAt: &token,
 	})
 	require.NoError(t, err)
 
-	// ...but reusing the same token afterwards must conflict.
+	// ...but a stale token must conflict. Reusing the just-consumed token
+	// cannot assert staleness deterministically: updates landing in the same
+	// second share the truncated timestamp, so build a token that is provably
+	// older than the current UpdatedAt.
+	stale := token.Add(-2 * time.Second)
 	_, err = svc.UpdateForm(ctx, ownerActor(userID, wsID), created.ID, domain.UpdateOrderInput{
 		Form:              validOrderForm(),
-		ExpectedUpdatedAt: &legacyToken,
+		ExpectedUpdatedAt: &stale,
 	})
 	require.Error(t, err)
 	var appErr *apperr.AppError
