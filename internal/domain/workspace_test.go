@@ -70,6 +70,8 @@ func TestRoleCanClear(t *testing.T) {
 		{name: "staff", role: RoleStaff, want: false},
 		{name: "empty", role: "", want: false},
 		{name: "unknown", role: "admin", want: false},
+		{name: "spaces", role: " owner", want: false},
+		{name: "mixed case", role: "Owner", want: false},
 	}
 
 	for _, tt := range tests {
