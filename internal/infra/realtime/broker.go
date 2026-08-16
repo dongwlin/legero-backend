@@ -18,6 +18,12 @@ type ReadyPayload struct {
 	ServerTime string `json:"serverTime"`
 }
 
+// HeartbeatPayload is the lightweight application-level heartbeat pushed on
+// the write loop so clients can refresh lastServerActivityAt and detect
+// half-open connections without reading protocol-level control frames. It
+// carries the same serverTime shape as ReadyPayload.
+type HeartbeatPayload = ReadyPayload
+
 type subscriber struct {
 	channel chan Message
 }

@@ -172,7 +172,13 @@ func (h *Realtime) writeLoop(conn *websocket.Conn, messages <-chan realtime.Mess
 				return err
 			}
 		case <-ticker.C:
+			// Keep protocol-level Ping/Pong (and its read-deadline refresh)
+			// unchanged, and additionally push an application-level heartbeat
+			// so browser/WebView clients can detect a healthy server link.
 			if err := h.writePing(conn); err != nil {
+				return err
+			}
+			if err := h.writeHeartbeat(conn); err != nil {
 				return err
 			}
 		}
@@ -192,6 +198,16 @@ func (h *Realtime) writePing(conn *websocket.Conn) error {
 		[]byte("ping"),
 		h.now().Add(h.writeTimeout),
 	)
+}
+
+func (h *Realtime) writeHeartbeat(conn *websocket.Conn) error {
+	message, err := realtime.NewMessage("heartbeat", realtime.HeartbeatPayload{
+		ServerTime: timex.FormatTime(h.now(), h.location),
+	})
+	if err != nil {
+		return err
+	}
+	return h.writeJSON(conn, message)
 }
 
 func (h *Realtime) writeClose(conn *websocket.Conn, code int, reason string) error {
