@@ -1,8 +1,27 @@
 # AGENTS.md
 
+## Mandatory Pre-task Checklist
+
+Complete every step below before starting task work. Skipping any step is a
+process violation: stop, complete the step, then continue.
+
+A delegated instruction reference is a reference through which a section
+defers its detailed instructions to another document. Delegated references
+are mandatory reading; ordinary documentation references remain on-demand.
+
+1. Read this file (`AGENTS.md`) in full.
+2. Resolve every delegated instruction reference in this file and read each
+   applicable referenced document in full.
+3. Only then begin task work.
+
 ## Project Overview
 
-Legero is a restaurant order-management backend written in Go: a JSON HTTP API (Gin) for users, workspaces, and orders, a WebSocket channel for real-time order updates, and a Cobra CLI (`serve`, `create-user`, `version`). Read [`docs/agents/project.md`](docs/agents/project.md) before working on unfamiliar areas — it covers the tech stack, repository layout, architecture, domain model, and API surface.
+Legero is a restaurant order-management backend written in Go: a JSON HTTP API
+(Gin) for users, workspaces, and orders, a WebSocket channel for real-time
+order updates, and a Cobra CLI (`serve`, `create-user`, `version`).
+
+For unfamiliar areas, see `docs/agents/project.md` for the tech stack,
+repository layout, architecture, domain model, and API surface.
 
 ## Common Commands
 
@@ -11,28 +30,24 @@ Legero is a restaurant order-management backend written in Go: a JSON HTTP API (
 * Test: `go test ./... -count=1` — integration tests need Docker (testcontainers, postgres:18)
 * Create a user: `go run . create-user --phone <phone> --password <password> [--workspace <name> | --workspace-id <uuid>] [--role owner|staff]`
 
-See [`docs/agents/commands.md`](docs/agents/commands.md) for the full command reference (config setup, CLI flags, Android builds, build-info ldflags, CI).
+See `docs/agents/commands.md` when additional command details are needed,
+including config setup, CLI flags, Android builds, build-info ldflags, and CI.
 
 ## Conventions
 
-Before writing or modifying code, read and follow [`docs/agents/conventions.md`](docs/agents/conventions.md): package layout and dependency direction, model and error conventions, time/money handling, logging, config, and testing rules.
+Instructions are delegated to `docs/agents/conventions.md`.
 
 ## Skills
 
-Read and follow [`docs/agents/skills.md`](docs/agents/skills.md) for skill discovery, selection, and loading rules.
+Instructions are delegated to `docs/agents/skills.md`.
 
 ## Sub-agents
-
-Read and follow [`docs/agents/subagents.md`](docs/agents/subagents.md) for sub-agent delegation, orchestration, and model-selection rules.
+Instructions are delegated to `docs/agents/subagents.md`.
 
 ## Local Environment
 
-Before starting task work, after reading this file, check whether
-`AGENTS.local.md` exists in the repository root.
-
-If present, read it as additional machine-local context for local paths,
-services, commands, debugging, and other environment-specific details.
-If absent, continue normally.
+If `AGENTS.local.md` exists in the repository root, machine-local instructions
+and context are delegated to it.
 
 `AGENTS.local.md` supplements this file and must not override repository-wide
 requirements unless explicitly permitted here.
