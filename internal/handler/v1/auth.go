@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
@@ -29,7 +30,7 @@ func NewAuthHandler(authSvc service.Auth, location *time.Location) *AuthHandler 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid login payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid login payload"))
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req dto.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid refresh payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid refresh payload"))
 		return
 	}
 
@@ -69,7 +70,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 func (h *AuthHandler) Bootstrap(c *gin.Context) {
 	authCtx, ok := AuthContext(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
@@ -30,7 +31,7 @@ func NewOrderHandler(orderSvc service.Order, location *time.Location) *OrderHand
 func (h *OrderHandler) List(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 
@@ -62,13 +63,13 @@ func (h *OrderHandler) List(c *gin.Context) {
 func (h *OrderHandler) Create(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 
 	var input model.CreateOrdersInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid create order payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid create order payload"))
 		return
 	}
 
@@ -87,18 +88,18 @@ func (h *OrderHandler) Create(c *gin.Context) {
 func (h *OrderHandler) Update(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("id must be a valid uuid"))
+		httpresp.AbortError(c, apperr.ValidationError("id must be a valid uuid"))
 		return
 	}
 
 	var input model.UpdateOrderInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid update order payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid update order payload"))
 		return
 	}
 
@@ -117,18 +118,18 @@ func (h *OrderHandler) Update(c *gin.Context) {
 func (h *OrderHandler) ToggleStep(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("id must be a valid uuid"))
+		httpresp.AbortError(c, apperr.ValidationError("id must be a valid uuid"))
 		return
 	}
 
 	var input model.ToggleStepInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid toggle step payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid toggle step payload"))
 		return
 	}
 
@@ -147,18 +148,18 @@ func (h *OrderHandler) ToggleStep(c *gin.Context) {
 func (h *OrderHandler) ToggleServed(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("id must be a valid uuid"))
+		httpresp.AbortError(c, apperr.ValidationError("id must be a valid uuid"))
 		return
 	}
 
 	var input model.ToggleServedInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid toggle served payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid toggle served payload"))
 		return
 	}
 
@@ -177,12 +178,12 @@ func (h *OrderHandler) ToggleServed(c *gin.Context) {
 func (h *OrderHandler) Delete(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("id must be a valid uuid"))
+		httpresp.AbortError(c, apperr.ValidationError("id must be a valid uuid"))
 		return
 	}
 
@@ -198,13 +199,13 @@ func (h *OrderHandler) Delete(c *gin.Context) {
 func (h *OrderHandler) Clear(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 
 	var input model.ClearWorkspaceInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("invalid clear payload"))
+		httpresp.AbortError(c, apperr.ValidationError("invalid clear payload"))
 		return
 	}
 
@@ -243,10 +244,10 @@ func parseLimit(value string) (int, error) {
 	}
 	limit, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, httpresp.ValidationError("limit must be an integer")
+		return 0, apperr.ValidationError("limit must be an integer")
 	}
 	if limit <= 0 {
-		return 0, httpresp.ValidationError("limit must be greater than 0")
+		return 0, apperr.ValidationError("limit must be greater than 0")
 	}
 	return limit, nil
 }

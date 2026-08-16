@@ -5,63 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/dongwlin/legero-backend/internal/apperr"
 )
-
-type AppError struct {
-	Status  int
-	Code    string
-	Message string
-	Err     error
-}
-
-func (e *AppError) Error() string {
-	return e.Message
-}
-
-func (e *AppError) Unwrap() error {
-	return e.Err
-}
-
-func NewError(status int, code, message string) *AppError {
-	return &AppError{
-		Status:  status,
-		Code:    code,
-		Message: message,
-	}
-}
-
-func WrapError(status int, code, message string, err error) *AppError {
-	return &AppError{
-		Status:  status,
-		Code:    code,
-		Message: message,
-		Err:     err,
-	}
-}
-
-func ValidationError(message string) *AppError {
-	return NewError(http.StatusBadRequest, "validation_failed", message)
-}
-
-func UnauthorizedError(message string) *AppError {
-	return NewError(http.StatusUnauthorized, "unauthorized", message)
-}
-
-func ForbiddenError(message string) *AppError {
-	return NewError(http.StatusForbidden, "forbidden", message)
-}
-
-func NotFoundError(code, message string) *AppError {
-	return NewError(http.StatusNotFound, code, message)
-}
-
-func ConflictError(code, message string) *AppError {
-	return NewError(http.StatusConflict, code, message)
-}
-
-func InternalError(message string, err error) *AppError {
-	return WrapError(http.StatusInternalServerError, "internal_error", message, err)
-}
 
 type errorBody struct {
 	Error struct {
@@ -70,17 +16,39 @@ type errorBody struct {
 	} `json:"error"`
 }
 
+// statusForKind maps an apperr.Kind to the HTTP status code used for it.
+func statusForKind(kind apperr.Kind) int {
+	switch kind {
+	case apperr.KindInvalidArgument:
+		return http.StatusBadRequest
+	case apperr.KindUnauthenticated:
+		return http.StatusUnauthorized
+	case apperr.KindForbidden:
+		return http.StatusForbidden
+	case apperr.KindNotFound:
+		return http.StatusNotFound
+	case apperr.KindConflict:
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// AbortError aborts the request with the JSON error body for err.
+//
+// *apperr.AppError values are mapped through their Kind to an HTTP status
+// (400/401/403/404/409/500). Any other error becomes a generic
+// "internal_error" 500 response, so wrap expected failures explicitly.
 func AbortError(c *gin.Context, err error) {
-	var appErr *AppError
+	var body errorBody
+	var appErr *apperr.AppError
 	if errors.As(err, &appErr) {
-		var body errorBody
 		body.Error.Code = appErr.Code
 		body.Error.Message = appErr.Message
-		c.AbortWithStatusJSON(appErr.Status, body)
+		c.AbortWithStatusJSON(statusForKind(appErr.Kind), body)
 		return
 	}
 
-	var body errorBody
 	body.Error.Code = "internal_error"
 	body.Error.Message = http.StatusText(http.StatusInternalServerError)
 	c.AbortWithStatusJSON(http.StatusInternalServerError, body)

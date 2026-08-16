@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -26,18 +27,18 @@ func NewStatsHandler(statsSvc service.Stats, location *time.Location) *StatsHand
 func (h *StatsHandler) Daily(c *gin.Context) {
 	actor, ok := actorFromGin(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 
 	from, err := time.ParseInLocation("2006-01-02", c.Query("from"), h.location)
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("from must use YYYY-MM-DD"))
+		httpresp.AbortError(c, apperr.ValidationError("from must use YYYY-MM-DD"))
 		return
 	}
 	to, err := time.ParseInLocation("2006-01-02", c.Query("to"), h.location)
 	if err != nil {
-		httpresp.AbortError(c, httpresp.ValidationError("to must use YYYY-MM-DD"))
+		httpresp.AbortError(c, apperr.ValidationError("to must use YYYY-MM-DD"))
 		return
 	}
 

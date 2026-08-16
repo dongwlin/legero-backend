@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
@@ -77,7 +78,7 @@ func NewRealtimeHandler(
 func (h *Realtime) CreateSession(c *gin.Context) {
 	authCtx, ok := AuthContext(c)
 	if !ok {
-		httpresp.AbortError(c, httpresp.UnauthorizedError("missing auth context"))
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *Realtime) CreateSession(c *gin.Context) {
 func (h *Realtime) ServeWS(c *gin.Context) {
 	ticket := strings.TrimSpace(c.Query("ticket"))
 	if ticket == "" {
-		httpresp.AbortError(c, httpresp.ValidationError("ticket is required"))
+		httpresp.AbortError(c, apperr.ValidationError("ticket is required"))
 		return
 	}
 

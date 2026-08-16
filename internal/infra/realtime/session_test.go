@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 )
 
@@ -51,9 +51,9 @@ func TestSessionManagerIssueAndConsumeSingleUse(t *testing.T) {
 	if _, err := manager.Consume(ticket); err == nil {
 		t.Fatal("second Consume() error = nil, want error")
 	} else {
-		var appErr *httpresp.AppError
+		var appErr *apperr.AppError
 		if !errors.As(err, &appErr) {
-			t.Fatalf("second Consume() error type = %T, want *httpresp.AppError", err)
+			t.Fatalf("second Consume() error type = %T, want *apperr.AppError", err)
 		}
 		if appErr.Code != "realtime_session_invalid" {
 			t.Fatalf("appErr.Code = %q, want %q", appErr.Code, "realtime_session_invalid")
@@ -83,9 +83,9 @@ func TestSessionManagerRejectsExpiredTickets(t *testing.T) {
 		t.Fatal("Consume() error = nil, want error")
 	}
 
-	var appErr *httpresp.AppError
+	var appErr *apperr.AppError
 	if !errors.As(err, &appErr) {
-		t.Fatalf("Consume() error type = %T, want *httpresp.AppError", err)
+		t.Fatalf("Consume() error type = %T, want *apperr.AppError", err)
 	}
 	if appErr.Code != "realtime_session_expired" {
 		t.Fatalf("appErr.Code = %q, want %q", appErr.Code, "realtime_session_expired")

@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/model"
@@ -59,51 +59,51 @@ func NewAuth(
 func (s *auth) Login(ctx context.Context, req service.LoginRequest) (*model.LoginResult, error) {
 	normalizedPhone := model.NormalizePhone(req.Phone)
 	if normalizedPhone == "" || strings.TrimSpace(req.Password) == "" {
-		return nil, httpresp.ValidationError("phone and password are required")
+		return nil, apperr.ValidationError("phone and password are required")
 	}
 
 	userRepo := repo.NewUser(s.db)
 	user, err := userRepo.GetByPhone(ctx, normalizedPhone)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to load user", err)
+		return nil, apperr.InternalError("failed to load user", err)
 	}
 	if user == nil || !user.IsActive {
-		return nil, httpresp.NewError(401, "invalid_credentials", "invalid phone or password")
+		return nil, apperr.New(apperr.KindUnauthenticated, "invalid_credentials", "invalid phone or password")
 	}
 
 	matched, err := s.hasher.Compare(req.Password, user.PasswordHash)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to verify password", err)
+		return nil, apperr.InternalError("failed to verify password", err)
 	}
 	if !matched {
-		return nil, httpresp.NewError(401, "invalid_credentials", "invalid phone or password")
+		return nil, apperr.New(apperr.KindUnauthenticated, "invalid_credentials", "invalid phone or password")
 	}
 
 	wsRepo := repo.NewWorkspace(s.db)
 	access, err := wsRepo.GetPrimaryAccess(ctx, user.ID)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to resolve workspace access", err)
+		return nil, apperr.InternalError("failed to resolve workspace access", err)
 	}
 	if access == nil {
-		return nil, httpresp.NotFoundError("workspace_not_found", "workspace not found")
+		return nil, apperr.NotFoundError("workspace_not_found", "workspace not found")
 	}
 
 	activeOrders, err := s.orders.ListActive(ctx, access.WorkspaceID)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to load active orders", err)
+		return nil, apperr.InternalError("failed to load active orders", err)
 	}
 
 	now := time.Now()
 	tokenPair, refreshRecord, err := s.issueTokenPair(now, user.ID, access)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to issue token pair", err)
+		return nil, apperr.InternalError("failed to issue token pair", err)
 	}
 
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		txRefreshRepo := repo.NewRefreshToken(tx)
 		return txRefreshRepo.Insert(ctx, &refreshRecord)
 	}); err != nil {
-		return nil, httpresp.InternalError("failed to persist refresh token", err)
+		return nil, apperr.InternalError("failed to persist refresh token", err)
 	}
 
 	return &model.LoginResult{
@@ -144,13 +144,13 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*model.Toke
 			return err
 		}
 		if stored == nil {
-			return httpresp.NewError(401, "refresh_token_reused", "refresh token is invalid")
+			return apperr.New(apperr.KindUnauthenticated, "refresh_token_reused", "refresh token is invalid")
 		}
 		if stored.RevokedAt != nil || stored.RotatedAt != nil || stored.ReplacedByID != nil {
-			return httpresp.NewError(401, "refresh_token_reused", "refresh token has already been used")
+			return apperr.New(apperr.KindUnauthenticated, "refresh_token_reused", "refresh token has already been used")
 		}
 		if now.After(stored.ExpiresAt) {
-			return httpresp.NewError(401, "refresh_token_expired", "refresh token has expired")
+			return apperr.New(apperr.KindUnauthenticated, "refresh_token_expired", "refresh token has expired")
 		}
 
 		access, err := txWsRepo.GetAccess(ctx, claims.UserID, claims.WorkspaceID)
@@ -158,7 +158,7 @@ func (s *auth) Refresh(ctx context.Context, rawRefreshToken string) (*model.Toke
 			return err
 		}
 		if access == nil {
-			return httpresp.NotFoundError("workspace_not_found", "workspace not found")
+			return apperr.NotFoundError("workspace_not_found", "workspace not found")
 		}
 
 		var replacementRecord model.RefreshToken
@@ -186,24 +186,24 @@ func (s *auth) Bootstrap(ctx context.Context, authCtx *identity.Context) (*model
 	userRepo := repo.NewUser(s.db)
 	user, err := userRepo.GetByID(ctx, authCtx.UserID)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to load user", err)
+		return nil, apperr.InternalError("failed to load user", err)
 	}
 	if user == nil || !user.IsActive {
-		return nil, httpresp.UnauthorizedError("user is inactive")
+		return nil, apperr.UnauthorizedError("user is inactive")
 	}
 
 	wsRepo := repo.NewWorkspace(s.db)
 	access, err := wsRepo.GetAccess(ctx, authCtx.UserID, authCtx.WorkspaceID)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to resolve workspace access", err)
+		return nil, apperr.InternalError("failed to resolve workspace access", err)
 	}
 	if access == nil {
-		return nil, httpresp.NotFoundError("workspace_not_found", "workspace not found")
+		return nil, apperr.NotFoundError("workspace_not_found", "workspace not found")
 	}
 
 	activeOrders, err := s.orders.ListActive(ctx, access.WorkspaceID)
 	if err != nil {
-		return nil, httpresp.InternalError("failed to load active orders", err)
+		return nil, apperr.InternalError("failed to load active orders", err)
 	}
 
 	return &model.BootstrapData{
@@ -304,48 +304,48 @@ func (s *auth) parseToken(rawToken, expectedType string) (*model.TokenClaims, er
 		lowered := strings.ToLower(err.Error())
 		if strings.Contains(lowered, "exp") || strings.Contains(lowered, "expired") {
 			if expectedType == "refresh" {
-				return nil, httpresp.NewError(401, "refresh_token_expired", "refresh token has expired")
+				return nil, apperr.New(apperr.KindUnauthenticated, "refresh_token_expired", "refresh token has expired")
 			}
-			return nil, httpresp.NewError(401, "token_expired", "access token has expired")
+			return nil, apperr.New(apperr.KindUnauthenticated, "token_expired", "access token has expired")
 		}
-		return nil, httpresp.UnauthorizedError("invalid token")
+		return nil, apperr.UnauthorizedError("invalid token")
 	}
 
 	subject, err := parsed.GetSubject()
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token subject")
+		return nil, apperr.UnauthorizedError("invalid token subject")
 	}
 	jti, err := parsed.GetJti()
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token identifier")
+		return nil, apperr.UnauthorizedError("invalid token identifier")
 	}
 	wid, err := parsed.GetString("wid")
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token")
+		return nil, apperr.UnauthorizedError("invalid token")
 	}
 	roleText, err := parsed.GetString("role")
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token")
+		return nil, apperr.UnauthorizedError("invalid token")
 	}
 	tokenType, err := parsed.GetString("typ")
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token")
+		return nil, apperr.UnauthorizedError("invalid token")
 	}
 	if tokenType != expectedType {
-		return nil, httpresp.UnauthorizedError("invalid token type")
+		return nil, apperr.UnauthorizedError("invalid token type")
 	}
 
 	userID, err := uuid.Parse(subject)
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token subject")
+		return nil, apperr.UnauthorizedError("invalid token subject")
 	}
 	workspaceID, err := uuid.Parse(wid)
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token workspace")
+		return nil, apperr.UnauthorizedError("invalid token workspace")
 	}
 	expiresAt, err := parsed.GetExpiration()
 	if err != nil {
-		return nil, httpresp.UnauthorizedError("invalid token expiration")
+		return nil, apperr.UnauthorizedError("invalid token expiration")
 	}
 
 	return &model.TokenClaims{
