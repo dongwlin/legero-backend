@@ -16,7 +16,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
-	"github.com/dongwlin/legero-backend/internal/repo/schema"
+	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/dongwlin/legero-backend/migrations"
 	"github.com/google/uuid"
@@ -120,10 +120,10 @@ func newTestService(t *testing.T, db *bun.DB) service.Auth {
 	return svc
 }
 
-func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*schema.User)) uuid.UUID {
+func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*domain.User)) uuid.UUID {
 	t.Helper()
 
-	user := schema.User{
+	user := domain.User{
 		ID:           uuid.New(),
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
 		PasswordHash: crypto.MustHashForTests("password123"),
@@ -136,8 +136,7 @@ func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(
 		opt(&user)
 	}
 
-	_, err := db.NewInsert().Model(&user).Exec(ctx)
-	if err != nil {
+	if err := repo.NewUser(db).Insert(ctx, &user); err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
@@ -179,7 +178,7 @@ func TestLogin_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001001"
 		u.IsActive = true
 	})
@@ -223,7 +222,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *schema.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001002"
 		u.IsActive = true
 	})
@@ -240,7 +239,7 @@ func TestLogin_InactiveUser(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *schema.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001003"
 		u.IsActive = false
 	})
@@ -257,7 +256,7 @@ func TestLogin_NoWorkspace(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	createTestUser(t, ctx, testDB, func(u *schema.User) {
+	createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800001004"
 		u.IsActive = true
 	})
@@ -279,7 +278,7 @@ func TestRefresh_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002001"
 		u.IsActive = true
 	})
@@ -325,7 +324,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002002"
 		u.IsActive = true
 	})
@@ -350,7 +349,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800002003"
 		u.IsActive = true
 	})
@@ -364,7 +363,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	tokenHash := crypto.HashToken(loginResult.TokenPair.RefreshToken)
 	now := time.Now()
 	_, err = testDB.NewUpdate().
-		Model((*schema.RefreshToken)(nil)).
+		Table("refresh_tokens").
 		Set("revoked_at = ?", now).
 		Where("token_hash = ?", tokenHash).
 		Exec(ctx)
@@ -386,7 +385,7 @@ func TestBootstrap_Success(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003001"
 		u.IsActive = true
 	})
@@ -419,7 +418,7 @@ func TestBootstrap_InactiveUser(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003002"
 		u.IsActive = false
 	})
@@ -444,7 +443,7 @@ func TestBootstrap_NoWorkspace(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, testDB)
 
-	userID := createTestUser(t, ctx, testDB, func(u *schema.User) {
+	userID := createTestUser(t, ctx, testDB, func(u *domain.User) {
 		u.Phone = "13800003003"
 		u.IsActive = true
 	})
