@@ -95,6 +95,8 @@ Authenticated (Bearer access token):
 
 A client first calls `POST /api/realtime/session` (authenticated) to obtain a short-lived one-time ticket, then connects to `GET /api/ws?ticket=...`. The broker fans out order events (`internal/domain/order_events.go`) to connected sessions. Heartbeat interval, session TTL, read/write timeouts, and allowed origins are configured under `realtime:` and `ws:`.
 
+On each server heartbeat tick the write loop sends a protocol-level `Ping` (refreshing the read deadline via `Pong`) and — in addition, not as a replacement — a lightweight application-level `heartbeat` JSON message (`{"type":"heartbeat","data":{"serverTime":...}}`), so browser/WebView clients can track `lastServerActivityAt` and detect half-open connections without reading control frames. Both use `realtime.heartbeatInterval` (default 20s).
+
 ## Configuration
 
 Configuration is loaded from `config/config.yaml` by default (see `config/config.example.yaml`), overridable via `-c` and via environment variables (bindings in `internal/infra/config/config.go`, e.g. `DATABASE_URL`, `HTTP_ADDR`, `PASETO_SYMMETRIC_KEY`, `BIZ_TIMEZONE`). Build metadata (`Version`/`Commit`/`BuildTime`/`GoVersion`) lives in `internal/infra/config` and is injected via ldflags; see `docs/agents/commands.md`.
