@@ -1,8 +1,11 @@
 package domain
 
-import (
-	"strings"
-)
+import "strings"
+
+// MaxOrderNoteBytes bounds the UTF-8 encoded note stored on an order. Keeping
+// this field bounded gives realtime order DTOs a finite per-item size; batch
+// publishers still apply their own serialized-frame budget.
+const MaxOrderNoteBytes = 1024
 
 // Normalize validates and normalizes an OrderFormInput.
 // Returns the normalized input or a descriptive error.
@@ -52,6 +55,9 @@ func (f OrderFormInput) Normalize() (OrderFormInput, error) {
 
 	normalized := f
 	normalized.Note = strings.TrimSpace(f.Note)
+	if len(normalized.Note) > MaxOrderNoteBytes {
+		return OrderFormInput{}, ErrNoteTooLong
+	}
 
 	if normalized.StapleTypeCode != nil && *normalized.StapleTypeCode == StapleTypeRice && normalized.SizeCode == SizeSmall {
 		normalized.SizeCode = SizeMedium

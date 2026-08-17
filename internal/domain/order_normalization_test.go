@@ -2,19 +2,20 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
 func TestOrderFormInput_Normalize(t *testing.T) {
 	t.Run("valid input passes normalization", func(t *testing.T) {
 		input := OrderFormInput{
-			StapleTypeCode:   int16Ptr(StapleTypeRiceSheet),
-			SizeCode:         SizeSmall,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodDineIn,
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
 			SelectedMeatCodes: []int16{MeatLeanPork},
 		}
 
@@ -29,13 +30,13 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 
 	t.Run("negative extra staple units returns error", func(t *testing.T) {
 		input := OrderFormInput{
-			ExtraStapleUnits: -1,
-			SizeCode:         SizeSmall,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodDineIn,
+			ExtraStapleUnits:  -1,
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
 			SelectedMeatCodes: []int16{MeatLeanPork},
 		}
 
@@ -47,12 +48,12 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 
 	t.Run("invalid size code returns error", func(t *testing.T) {
 		input := OrderFormInput{
-			SizeCode:         99,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodDineIn,
+			SizeCode:          99,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
 			SelectedMeatCodes: []int16{MeatLeanPork},
 		}
 
@@ -64,13 +65,13 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 
 	t.Run("rice small promoted to medium", func(t *testing.T) {
 		input := OrderFormInput{
-			StapleTypeCode:   int16Ptr(StapleTypeRice),
-			SizeCode:         SizeSmall,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodDineIn,
+			StapleTypeCode:    int16Ptr(StapleTypeRice),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
 			SelectedMeatCodes: []int16{MeatLeanPork},
 		}
 
@@ -101,15 +102,15 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 
 	t.Run("note is trimmed", func(t *testing.T) {
 		input := OrderFormInput{
-			StapleTypeCode:   int16Ptr(StapleTypeRiceSheet),
-			SizeCode:         SizeSmall,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodDineIn,
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
 			SelectedMeatCodes: []int16{MeatLeanPork},
-			Note:             "  test note  ",
+			Note:              "  test note  ",
 		}
 
 		result, err := input.Normalize()
@@ -121,15 +122,87 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 		}
 	})
 
+	t.Run("maximum note size is accepted", func(t *testing.T) {
+		input := OrderFormInput{
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
+			SelectedMeatCodes: []int16{MeatLeanPork},
+			Note:              strings.Repeat("n", MaxOrderNoteBytes),
+		}
+
+		result, err := input.Normalize()
+		if err != nil {
+			t.Fatalf("Normalize() error = %v", err)
+		}
+		if len(result.Note) != MaxOrderNoteBytes {
+			t.Fatalf("Normalize() note bytes = %d, want %d", len(result.Note), MaxOrderNoteBytes)
+		}
+	})
+
+	t.Run("maximum note size is measured in UTF-8 bytes", func(t *testing.T) {
+		base := strings.Repeat("界", MaxOrderNoteBytes/len("界"))
+		atLimit := base + "x"
+		if len(atLimit) != MaxOrderNoteBytes {
+			t.Fatalf("test note bytes = %d, want %d", len(atLimit), MaxOrderNoteBytes)
+		}
+		if len([]rune(atLimit)) >= MaxOrderNoteBytes {
+			t.Fatalf("test note should contain fewer runes than bytes: %d runes", len([]rune(atLimit)))
+		}
+
+		input := OrderFormInput{
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
+			SelectedMeatCodes: []int16{MeatLeanPork},
+			Note:              atLimit,
+		}
+		if _, err := input.Normalize(); err != nil {
+			t.Fatalf("Normalize() at byte limit error = %v", err)
+		}
+
+		input.Note += "x"
+		if _, err := input.Normalize(); !errors.Is(err, ErrNoteTooLong) {
+			t.Fatalf("Normalize() over byte limit error = %v, want %v", err, ErrNoteTooLong)
+		}
+	})
+
+	t.Run("note over maximum size returns error", func(t *testing.T) {
+		input := OrderFormInput{
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodDineIn,
+			SelectedMeatCodes: []int16{MeatLeanPork},
+			Note:              strings.Repeat("n", MaxOrderNoteBytes+1),
+		}
+
+		_, err := input.Normalize()
+		if !errors.Is(err, ErrNoteTooLong) {
+			t.Fatalf("Normalize() error = %v, want %v", err, ErrNoteTooLong)
+		}
+	})
+
 	t.Run("takeout sets default packaging", func(t *testing.T) {
 		input := OrderFormInput{
-			StapleTypeCode:   int16Ptr(StapleTypeRiceSheet),
-			SizeCode:         SizeSmall,
-			StapleAmountCode: AdjustmentNormal,
-			GreensCode:       AdjustmentNormal,
-			ScallionCode:     AdjustmentNormal,
-			PepperCode:       AdjustmentNormal,
-			DiningMethodCode: DiningMethodTakeout,
+			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
+			SizeCode:          SizeSmall,
+			StapleAmountCode:  AdjustmentNormal,
+			GreensCode:        AdjustmentNormal,
+			ScallionCode:      AdjustmentNormal,
+			PepperCode:        AdjustmentNormal,
+			DiningMethodCode:  DiningMethodTakeout,
 			SelectedMeatCodes: []int16{MeatLeanPork},
 		}
 
@@ -149,15 +222,15 @@ func TestOrderFormInput_Normalize(t *testing.T) {
 		packagingCode := int16(PackagingContainer)
 		packagingMethod := int16(PackagingMethodTogether)
 		input := OrderFormInput{
-			StapleTypeCode:    int16Ptr(StapleTypeRiceSheet),
-			SizeCode:          SizeSmall,
-			StapleAmountCode:  AdjustmentNormal,
-			GreensCode:        AdjustmentNormal,
-			ScallionCode:      AdjustmentNormal,
-			PepperCode:        AdjustmentNormal,
-			DiningMethodCode:  DiningMethodDineIn,
-			SelectedMeatCodes: []int16{MeatLeanPork},
-			PackagingCode:     &packagingCode,
+			StapleTypeCode:      int16Ptr(StapleTypeRiceSheet),
+			SizeCode:            SizeSmall,
+			StapleAmountCode:    AdjustmentNormal,
+			GreensCode:          AdjustmentNormal,
+			ScallionCode:        AdjustmentNormal,
+			PepperCode:          AdjustmentNormal,
+			DiningMethodCode:    DiningMethodDineIn,
+			SelectedMeatCodes:   []int16{MeatLeanPork},
+			PackagingCode:       &packagingCode,
 			PackagingMethodCode: &packagingMethod,
 		}
 

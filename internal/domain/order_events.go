@@ -24,9 +24,9 @@ type UpsertEvent struct {
 	Item OrderDTO `json:"item"`
 }
 
-// UpsertManyEvent is the payload for a bounded batch of order upsert events.
-// Keeping the item list bounded prevents a single realtime frame from growing
-// without limit when a large create request is accepted.
+// UpsertManyEvent is the payload for a batch of order upsert events. The
+// publishing service bounds both item count and the complete serialized frame
+// size; this payload type alone does not enforce either limit.
 type UpsertManyEvent struct {
 	Items []OrderDTO `json:"items"`
 }
