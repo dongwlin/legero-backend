@@ -7,7 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const subscriberBufferSize = 16
+// subscriberBufferSize absorbs short event bursts without treating an
+// otherwise healthy subscriber as slow. Once it is genuinely full, Publish
+// still closes that subscriber rather than dropping an event silently.
+const subscriberBufferSize = 128
 
 type Message struct {
 	Type string          `json:"type"`

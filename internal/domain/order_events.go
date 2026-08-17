@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	EventOrderUpsert  = "order.upsert"
-	EventOrderDeleted = "order.deleted"
-	EventOrderCleared = "order.cleared"
+	EventOrderUpsert     = "order.upsert"
+	EventOrderUpsertMany = "order.upsert_many"
+	EventOrderDeleted    = "order.deleted"
+	EventOrderCleared    = "order.cleared"
 )
 
 // Publisher is the interface for publishing order events.
@@ -21,6 +22,13 @@ type Publisher interface {
 // UpsertEvent is the payload for an order upsert event.
 type UpsertEvent struct {
 	Item OrderDTO `json:"item"`
+}
+
+// UpsertManyEvent is the payload for a bounded batch of order upsert events.
+// Keeping the item list bounded prevents a single realtime frame from growing
+// without limit when a large create request is accepted.
+type UpsertManyEvent struct {
+	Items []OrderDTO `json:"items"`
 }
 
 // DeletedEvent is the payload for an order deleted event.
@@ -103,4 +111,3 @@ func (o Order) ToDTO(location *time.Location) OrderDTO {
 
 	return dto
 }
-

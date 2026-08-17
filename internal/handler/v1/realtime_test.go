@@ -161,6 +161,47 @@ func TestWriteLoopForwardsBusinessMessages(t *testing.T) {
 	}
 }
 
+func TestWriteLoopForwardsBatchedBusinessMessages(t *testing.T) {
+	h := newTestRealtime(t, time.Hour)
+	messages := make(chan realtime.Message)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := h.upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = h.writeLoop(conn, messages)
+	}))
+	defer func() {
+		close(messages)
+		server.Close()
+	}()
+
+	conn := connectWS(t, server.URL)
+	defer conn.Close()
+
+	messages <- realtime.Message{
+		Type: "order.upsert_many",
+		Data: json.RawMessage(`{"items":[{"id":"first"},{"id":"second"}]}`),
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, payload, err := conn.ReadMessage()
+	require.NoError(t, err)
+
+	var message realtime.Message
+	require.NoError(t, json.Unmarshal(payload, &message))
+	require.Equal(t, "order.upsert_many", message.Type)
+	var data struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal(message.Data, &data))
+	require.Equal(t, []string{"first", "second"}, []string{data.Items[0].ID, data.Items[1].ID})
+}
+
 func TestWriteLoopClosesWithReconnectRequired(t *testing.T) {
 	h := newTestRealtime(t, time.Hour)
 	messages := make(chan realtime.Message)
@@ -183,6 +224,9 @@ func TestWriteLoopClosesWithReconnectRequired(t *testing.T) {
 	_, _, err := conn.ReadMessage()
 	require.Error(t, err)
 	require.True(t, websocket.IsCloseError(err, websocket.CloseTryAgainLater), "got %v", err)
+	closeErr, ok := err.(*websocket.CloseError)
+	require.True(t, ok, "got %T: %v", err, err)
+	require.Equal(t, "reconnect_required", closeErr.Text)
 }
 
 func TestServeWSDeliversHeartbeatToClient(t *testing.T) {

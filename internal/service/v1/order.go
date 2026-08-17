@@ -15,6 +15,11 @@ import (
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
+// maxOrderUpsertBatchSize bounds the number of order DTOs in one realtime
+// frame. A large create request is split into several batch events so the
+// protocol remains efficient without allowing an unbounded payload.
+const maxOrderUpsertBatchSize = 64
+
 // order implements service.Order.
 type order struct {
 	db        *bun.DB
@@ -444,15 +449,38 @@ func sameOrderProgress(before, after domain.Order) bool {
 	return false
 }
 
-// publishUpserts publishes upsert events for each order item.
+// publishUpserts publishes one legacy single-order event for one item and
+// bounded batch events for multiple items. CreateBatch uses this helper after
+// its transaction commits, so subscribers never observe an uncommitted order.
 func (s *order) publishUpserts(items []domain.Order) {
-	if s.publisher == nil {
+	if s.publisher == nil || len(items) == 0 {
 		return
 	}
-	for _, item := range items {
-		s.publisher.Publish(item.WorkspaceID, domain.EventOrderUpsert, domain.UpsertEvent{
-			Item: item.ToDTO(s.location),
-		})
+
+	legacySingleEvent := len(items) == 1
+	for start := 0; start < len(items); {
+		end := start + 1
+		workspaceID := items[start].WorkspaceID
+		for end < len(items) && end-start < maxOrderUpsertBatchSize && items[end].WorkspaceID == workspaceID {
+			end++
+		}
+
+		if legacySingleEvent {
+			item := items[start]
+			s.publisher.Publish(workspaceID, domain.EventOrderUpsert, domain.UpsertEvent{
+				Item: item.ToDTO(s.location),
+			})
+		} else {
+			dtos := make([]domain.OrderDTO, 0, end-start)
+			for _, item := range items[start:end] {
+				dtos = append(dtos, item.ToDTO(s.location))
+			}
+			s.publisher.Publish(workspaceID, domain.EventOrderUpsertMany, domain.UpsertManyEvent{
+				Items: dtos,
+			})
+		}
+
+		start = end
 	}
 }
 

@@ -236,6 +236,89 @@ func TestCreateBatch_StartsVersionAtOne(t *testing.T) {
 	}
 }
 
+type capturedRealtimeEvent struct {
+	workspaceID uuid.UUID
+	eventType   string
+	payload     any
+}
+
+type capturingRealtimePublisher struct {
+	events []capturedRealtimeEvent
+}
+
+func (p *capturingRealtimePublisher) Publish(workspaceID uuid.UUID, eventType string, payload any) {
+	p.events = append(p.events, capturedRealtimeEvent{
+		workspaceID: workspaceID,
+		eventType:   eventType,
+		payload:     payload,
+	})
+}
+
+func TestCreateBatch_PublishesOneBatchEvent(t *testing.T) {
+	ctx := context.Background()
+	userID := createTestUser(t, ctx, testDB)
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
+
+	publisher := &capturingRealtimePublisher{}
+	svc := NewOrder(testDB, time.UTC, publisher)
+	items, err := svc.CreateBatch(ctx, ownerActor(userID, wsID), domain.CreateOrdersInput{
+		Quantity: 3,
+		Form:     validOrderForm(),
+	})
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	require.Len(t, publisher.events, 1)
+
+	event := publisher.events[0]
+	require.Equal(t, wsID, event.workspaceID)
+	require.Equal(t, domain.EventOrderUpsertMany, event.eventType)
+	payload, ok := event.payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, payload.Items, 3)
+	for index, item := range items {
+		require.Equal(t, item.ID.String(), payload.Items[index].ID)
+	}
+}
+
+func TestPublishUpsertsSplitsLargeBatchesAndKeepsSingleProtocol(t *testing.T) {
+	workspaceID := uuid.New()
+	publisher := &capturingRealtimePublisher{}
+	svc := &order{
+		location:  time.UTC,
+		publisher: publisher,
+	}
+	items := make([]domain.Order, maxOrderUpsertBatchSize+1)
+	for index := range items {
+		items[index] = domain.Order{
+			ID:          uuid.New(),
+			WorkspaceID: workspaceID,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+	}
+
+	svc.publishUpserts(items)
+	require.Len(t, publisher.events, 2)
+	first, ok := publisher.events[0].payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, first.Items, maxOrderUpsertBatchSize)
+	second, ok := publisher.events[1].payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, second.Items, 1)
+	for _, event := range publisher.events {
+		require.Equal(t, workspaceID, event.workspaceID)
+		require.Equal(t, domain.EventOrderUpsertMany, event.eventType)
+	}
+
+	publisher.events = nil
+	svc.publishUpserts(items[:1])
+	require.Len(t, publisher.events, 1)
+	require.Equal(t, domain.EventOrderUpsert, publisher.events[0].eventType)
+	_, ok = publisher.events[0].payload.(domain.UpsertEvent)
+	require.True(t, ok)
+}
+
 // ---------------------------------------------------------------------------
 // OrderService.ToggleStep
 // ---------------------------------------------------------------------------
