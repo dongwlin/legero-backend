@@ -19,5 +19,6 @@ var (
 	ErrInvalidMeatCode          = errors.New("selectedMeatCodes contains invalid value")
 	ErrMissingCustomSizePrice   = errors.New("customSizePriceCents must be set when sizeCode is custom")
 	ErrEmptyOrder               = errors.New("at least one of stapleTypeCode or selectedMeatCodes is required")
+	ErrNoteTooLong              = errors.New("note must be at most 1024 UTF-8 bytes")
 	ErrOrderConflict            = errors.New("order has been modified by another request")
 )

@@ -1,14 +1,18 @@
 package v1
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
 	"github.com/google/uuid"
@@ -61,6 +65,12 @@ func validOrderForm() domain.OrderFormInput {
 		DiningMethodCode:  domain.DiningMethodDineIn,
 		SelectedMeatCodes: []int16{domain.MeatLeanPork},
 	}
+}
+
+func oversizedNoteOrderForm() domain.OrderFormInput {
+	form := validOrderForm()
+	form.Note = strings.Repeat("n", domain.MaxOrderNoteBytes+1)
+	return form
 }
 
 func newTestOrderService(t *testing.T) service.Order {
@@ -234,6 +244,183 @@ func TestCreateBatch_StartsVersionAtOne(t *testing.T) {
 	for _, item := range items {
 		require.Equal(t, int64(1), item.Version)
 	}
+}
+
+type capturedRealtimeEvent struct {
+	workspaceID uuid.UUID
+	eventType   string
+	payload     any
+}
+
+type capturingRealtimePublisher struct {
+	events []capturedRealtimeEvent
+}
+
+func (p *capturingRealtimePublisher) Publish(workspaceID uuid.UUID, eventType string, payload any) {
+	p.events = append(p.events, capturedRealtimeEvent{
+		workspaceID: workspaceID,
+		eventType:   eventType,
+		payload:     payload,
+	})
+}
+
+func TestCreateBatch_PublishesOneBatchEvent(t *testing.T) {
+	ctx := context.Background()
+	userID := createTestUser(t, ctx, testDB)
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
+
+	publisher := &capturingRealtimePublisher{}
+	svc := NewOrder(testDB, time.UTC, publisher)
+	items, err := svc.CreateBatch(ctx, ownerActor(userID, wsID), domain.CreateOrdersInput{
+		Quantity: 3,
+		Form:     validOrderForm(),
+	})
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	require.Len(t, publisher.events, 1)
+
+	event := publisher.events[0]
+	require.Equal(t, wsID, event.workspaceID)
+	require.Equal(t, domain.EventOrderUpsertMany, event.eventType)
+	payload, ok := event.payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, payload.Items, 3)
+	for index, item := range items {
+		require.Equal(t, item.ID.String(), payload.Items[index].ID)
+	}
+}
+
+func TestCreateBatchRejectsOversizedNoteBeforeDatabaseWork(t *testing.T) {
+	svc := &order{}
+	input := domain.CreateOrdersInput{
+		Quantity: 1,
+		Form:     oversizedNoteOrderForm(),
+	}
+
+	_, err := svc.CreateBatch(context.Background(), domain.Actor{}, input)
+	var appErr *apperr.AppError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, apperr.KindInvalidArgument, appErr.Kind)
+	require.Equal(t, "validation_failed", appErr.Code)
+	require.ErrorIs(t, err, domain.ErrNoteTooLong)
+}
+
+func TestUpdateFormRejectsOversizedNoteBeforeDatabaseWork(t *testing.T) {
+	svc := &order{}
+	_, err := svc.UpdateForm(context.Background(), domain.Actor{}, uuid.New(), domain.UpdateOrderInput{
+		Form: oversizedNoteOrderForm(),
+	})
+
+	var appErr *apperr.AppError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, apperr.KindInvalidArgument, appErr.Kind)
+	require.Equal(t, "validation_failed", appErr.Code)
+	require.ErrorIs(t, err, domain.ErrNoteTooLong)
+}
+
+func TestPublishUpsertsSplitsLargeBatchesAndKeepsSingleProtocol(t *testing.T) {
+	workspaceID := uuid.New()
+	publisher := &capturingRealtimePublisher{}
+	svc := &order{
+		location:  time.UTC,
+		publisher: publisher,
+	}
+	items := make([]domain.Order, maxOrderUpsertBatchSize+1)
+	for index := range items {
+		items[index] = domain.Order{
+			ID:          uuid.New(),
+			WorkspaceID: workspaceID,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+	}
+
+	svc.publishUpserts(items)
+	require.Len(t, publisher.events, 2)
+	first, ok := publisher.events[0].payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, first.Items, maxOrderUpsertBatchSize)
+	second, ok := publisher.events[1].payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Len(t, second.Items, 1)
+	for _, event := range publisher.events {
+		require.Equal(t, workspaceID, event.workspaceID)
+		require.Equal(t, domain.EventOrderUpsertMany, event.eventType)
+	}
+
+	publisher.events = nil
+	svc.publishUpserts(items[:1])
+	require.Len(t, publisher.events, 1)
+	require.Equal(t, domain.EventOrderUpsert, publisher.events[0].eventType)
+	_, ok = publisher.events[0].payload.(domain.UpsertEvent)
+	require.True(t, ok)
+}
+
+func TestPublishUpsertsSplitsBeforeSerializedFrameBudget(t *testing.T) {
+	workspaceID := uuid.New()
+	publisher := &capturingRealtimePublisher{}
+	svc := &order{
+		location:  time.UTC,
+		publisher: publisher,
+	}
+	items := make([]domain.Order, maxOrderUpsertBatchSize)
+	for index := range items {
+		items[index] = domain.Order{
+			ID:          uuid.New(),
+			WorkspaceID: workspaceID,
+			Note:        strings.Repeat("<", domain.MaxOrderNoteBytes),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+	}
+
+	svc.publishUpserts(items)
+	require.Greater(t, len(publisher.events), 1, "large notes should trigger the byte budget before the item-count limit")
+	for _, event := range publisher.events {
+		require.Equal(t, domain.EventOrderUpsertMany, event.eventType)
+		payload, ok := event.payload.(domain.UpsertManyEvent)
+		require.True(t, ok)
+		require.NotEmpty(t, payload.Items)
+		require.LessOrEqual(t, len(payload.Items), maxOrderUpsertBatchSize)
+		require.LessOrEqual(t, serializedCapturedEventSize(t, event), maxOrderUpsertFrameBytes)
+	}
+
+	first, ok := publisher.events[0].payload.(domain.UpsertManyEvent)
+	require.True(t, ok)
+	require.Less(t, len(first.Items), maxOrderUpsertBatchSize, "byte budget should cut before 64 items")
+}
+
+func TestPublishUpsertsKeepsSingleProtocolWithinFrameBudget(t *testing.T) {
+	workspaceID := uuid.New()
+	publisher := &capturingRealtimePublisher{}
+	svc := &order{
+		location:  time.UTC,
+		publisher: publisher,
+	}
+	item := domain.Order{
+		ID:          uuid.New(),
+		WorkspaceID: workspaceID,
+		Note:        strings.Repeat("<", domain.MaxOrderNoteBytes),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	svc.publishUpserts([]domain.Order{item})
+	require.Len(t, publisher.events, 1)
+	require.Equal(t, domain.EventOrderUpsert, publisher.events[0].eventType)
+	_, ok := publisher.events[0].payload.(domain.UpsertEvent)
+	require.True(t, ok)
+	require.LessOrEqual(t, serializedCapturedEventSize(t, publisher.events[0]), maxOrderUpsertFrameBytes)
+}
+
+func serializedCapturedEventSize(t *testing.T, event capturedRealtimeEvent) int {
+	t.Helper()
+	message, err := realtime.NewMessage(event.eventType, event.payload)
+	require.NoError(t, err)
+	var encoded bytes.Buffer
+	require.NoError(t, json.NewEncoder(&encoded).Encode(message))
+	return encoded.Len()
 }
 
 // ---------------------------------------------------------------------------

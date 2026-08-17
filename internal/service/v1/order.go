@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,8 +13,21 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/internal/repo"
 	"github.com/dongwlin/legero-backend/internal/service"
+)
+
+const (
+	// maxOrderUpsertBatchSize bounds the number of order DTOs in one realtime
+	// frame. A large create request is split into several batch events so the
+	// protocol remains efficient without allowing an unbounded payload.
+	maxOrderUpsertBatchSize = 64
+
+	// maxOrderUpsertFrameBytes bounds the serialized websocket Message,
+	// including its type/data wrapper. The publisher also checks this budget
+	// after JSON encoding because DTO fields have variable serialized sizes.
+	maxOrderUpsertFrameBytes = 64 * 1024
 )
 
 // order implements service.Order.
@@ -65,7 +80,7 @@ func (s *order) CreateBatch(ctx context.Context, actor domain.Actor, input domai
 		return nil, apperr.ValidationError("quantity must be greater than 0")
 	}
 
-	form, err := input.Form.Normalize()
+	form, err := normalizeOrderForm(input.Form)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +142,7 @@ func (s *order) CreateBatch(ctx context.Context, actor domain.Actor, input domai
 
 // UpdateForm replaces the form data of an existing order.
 func (s *order) UpdateForm(ctx context.Context, actor domain.Actor, orderID uuid.UUID, input domain.UpdateOrderInput) (*domain.Order, error) {
-	form, err := input.Form.Normalize()
+	form, err := normalizeOrderForm(input.Form)
 	if err != nil {
 		return nil, err
 	}
@@ -444,16 +459,99 @@ func sameOrderProgress(before, after domain.Order) bool {
 	return false
 }
 
-// publishUpserts publishes upsert events for each order item.
+// publishUpserts publishes one legacy single-order event for one item and
+// bounded batch events for multiple items. CreateBatch uses this helper after
+// its transaction commits, so subscribers never observe an uncommitted order.
 func (s *order) publishUpserts(items []domain.Order) {
-	if s.publisher == nil {
+	if s.publisher == nil || len(items) == 0 {
 		return
 	}
-	for _, item := range items {
-		s.publisher.Publish(item.WorkspaceID, domain.EventOrderUpsert, domain.UpsertEvent{
-			Item: item.ToDTO(s.location),
+
+	legacySingleEvent := len(items) == 1
+	for start := 0; start < len(items); {
+		workspaceID := items[start].WorkspaceID
+		if legacySingleEvent {
+			item := items[start]
+			s.publisher.Publish(workspaceID, domain.EventOrderUpsert, domain.UpsertEvent{
+				Item: item.ToDTO(s.location),
+			})
+			start++
+			continue
+		}
+
+		dtos := make([]domain.OrderDTO, 0, minOrderUpsertBatchCapacity(len(items)-start))
+		end := start
+		for end < len(items) && items[end].WorkspaceID == workspaceID {
+			dto := items[end].ToDTO(s.location)
+			if len(dtos) > 0 && len(dtos) >= maxOrderUpsertBatchSize {
+				break
+			}
+
+			candidate := make([]domain.OrderDTO, len(dtos), len(dtos)+1)
+			copy(candidate, dtos)
+			candidate = append(candidate, dto)
+			if len(dtos) > 0 && orderUpsertManyFrameSize(candidate) > maxOrderUpsertFrameBytes {
+				break
+			}
+
+			dtos = candidate
+			end++
+		}
+
+		// A normalized order note has a bounded size, so one item always fits
+		// the frame budget. Keep a defensive fallback for orders that predate
+		// this validation or were constructed outside the service boundary: an
+		// item must still be published rather than silently dropped.
+		if len(dtos) == 0 {
+			dtos = append(dtos, items[start].ToDTO(s.location))
+			end = start + 1
+		}
+
+		s.publisher.Publish(workspaceID, domain.EventOrderUpsertMany, domain.UpsertManyEvent{
+			Items: dtos,
 		})
+		start = end
 	}
+}
+
+func minOrderUpsertBatchCapacity(remaining int) int {
+	if remaining < maxOrderUpsertBatchSize {
+		return remaining
+	}
+	return maxOrderUpsertBatchSize
+}
+
+// orderUpsertManyFrameSize returns the encoded size of the complete realtime
+// Message, rather than only the nested event payload. Conn.WriteJSON uses a
+// json.Encoder and therefore appends a newline; this budget includes it too.
+// Upsert DTOs contain no values that the JSON encoder cannot encode, so an
+// error here is defensive only.
+func orderUpsertManyFrameSize(items []domain.OrderDTO) int {
+	message, err := realtime.NewMessage(domain.EventOrderUpsertMany, domain.UpsertManyEvent{
+		Items: items,
+	})
+	if err != nil {
+		return maxOrderUpsertFrameBytes + 1
+	}
+
+	var encoded bytes.Buffer
+	if err := json.NewEncoder(&encoded).Encode(message); err != nil {
+		return maxOrderUpsertFrameBytes + 1
+	}
+	return encoded.Len()
+}
+
+func normalizeOrderForm(input domain.OrderFormInput) (domain.OrderFormInput, error) {
+	form, err := input.Normalize()
+	if err != nil {
+		return domain.OrderFormInput{}, apperr.Wrap(
+			apperr.KindInvalidArgument,
+			"validation_failed",
+			err.Error(),
+			err,
+		)
+	}
+	return form, nil
 }
 
 // wrapError passes through AppError instances and wraps everything else as InternalError.
