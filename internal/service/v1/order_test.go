@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -338,4 +339,142 @@ func TestToDTO_ExposesVersion(t *testing.T) {
 	dto := order.ToDTO(time.UTC)
 	require.Equal(t, int64(17), dto.Version)
 	require.Equal(t, order.ID.String(), dto.ID)
+}
+
+// ---------------------------------------------------------------------------
+// ClearWorkspace commit-then-publish causality
+// ---------------------------------------------------------------------------
+
+// recordingPublisher implements domain.Publisher, collecting the cleared
+// events it published. onPublish, when set, runs synchronously inside
+// Publish: it stands in for the moment a replica client would receive the
+// event and react (typically by starting a follow-up snapshot), so
+// assertions made there check what that client can observe.
+type recordingPublisher struct {
+	mu        sync.Mutex
+	events    []domain.ClearedEvent
+	onPublish func(wsID uuid.UUID, event domain.ClearedEvent)
+}
+
+func (p *recordingPublisher) Publish(workspaceID uuid.UUID, eventType string, payload any) {
+	if eventType != domain.EventOrderCleared {
+		return
+	}
+
+	event, ok := payload.(domain.ClearedEvent)
+	if !ok {
+		return
+	}
+
+	p.mu.Lock()
+	p.events = append(p.events, event)
+	onPublish := p.onPublish
+	p.mu.Unlock()
+
+	if onPublish != nil {
+		onPublish(workspaceID, event)
+	}
+}
+
+// TestClearWorkspace_OrderClearedPublishedOnlyAfterCommit is the causality
+// guarantee the client's full-clear epoch barrier relies on: once
+// order.cleared is observable, the delete must already be committed and
+// visible to other connections. Publishing inside the transaction would let
+// the follow-up snapshot a client starts on receiving the event read the
+// pre-clear rows and misjudge the epoch.
+func TestClearWorkspace_OrderClearedPublishedOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	userID := createTestUser(t, ctx, testDB)
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
+
+	createTestOrder(t, ctx, testDB, wsID, userID, func(o *domain.Order) {
+		o.DisplayNo = "CLR-A"
+		o.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	})
+	createTestOrder(t, ctx, testDB, wsID, userID, func(o *domain.Order) {
+		o.DisplayNo = "CLR-B"
+		o.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	})
+
+	publisher := &recordingPublisher{
+		onPublish: func(publishWSID uuid.UUID, _ domain.ClearedEvent) {
+			require.Equal(t, wsID, publishWSID)
+			// A different connection (the pool's next free one — the clear
+			// transaction holds one) queries the workspace exactly like a
+			// client snapshot would. Both orders must already be gone: if the
+			// event had been published before the transaction committed, this
+			// query would still see them (uncommitted DELETEs are invisible
+			// under read committed).
+			orders, _, err := repo.NewOrder(testDB).List(ctx, wsID, domain.ListOrdersQuery{
+				Status: domain.ListStatusAll,
+				Limit:  50,
+			})
+			require.NoError(t, err)
+			require.Empty(t, orders, "order.cleared must only be observable after the clear transaction committed")
+		},
+	}
+
+	svc := NewOrder(testDB, time.UTC, publisher)
+	cleared, err := svc.ClearWorkspace(ctx, ownerActor(userID, wsID), true, domain.ClearWorkspaceModeAll)
+	require.NoError(t, err)
+	require.Equal(t, 2, cleared)
+
+	publisher.mu.Lock()
+	defer publisher.mu.Unlock()
+	require.Len(t, publisher.events, 1)
+	require.Equal(t, domain.ClearedEvent{
+		ClearedCount: 2,
+		Mode:         domain.ClearWorkspaceModeAll,
+	}, publisher.events[0])
+}
+
+// TestClearWorkspace_BeforeToday_PublishesAuthorityCutoffAfterCommit covers
+// the same commit-then-publish guarantee for before_today clears and checks
+// the authoritative ClearDateKey is carried: the client pins its barrier to
+// that server-computed business-day key.
+func TestClearWorkspace_BeforeToday_PublishesAuthorityCutoffAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	userID := createTestUser(t, ctx, testDB)
+	wsID := createTestWorkspace(t, ctx, testDB)
+	createTestWorkspaceMember(t, ctx, testDB, userID, wsID, "owner")
+	now := time.Now()
+	today := orderBusinessDate(now, time.UTC)
+
+	createTestOrder(t, ctx, testDB, wsID, userID, func(o *domain.Order) {
+		o.DisplayNo = "OLD"
+		o.CreatedAt = today.Add(-time.Second)
+	})
+	createTestOrder(t, ctx, testDB, wsID, userID, func(o *domain.Order) {
+		o.DisplayNo = "TODAY"
+		o.CreatedAt = now
+	})
+
+	publisher := &recordingPublisher{
+		onPublish: func(wsID uuid.UUID, event domain.ClearedEvent) {
+			require.Equal(t, domain.ClearWorkspaceModeBeforeToday, event.Mode)
+			require.Equal(t, today.Format("2006-01-02"), event.ClearDateKey)
+
+			// At event-observability time the old order is gone but today's
+			// order (which the server kept) is still visible to a snapshot.
+			orders, _, err := repo.NewOrder(testDB).List(ctx, wsID, domain.ListOrdersQuery{
+				Status: domain.ListStatusAll,
+				Limit:  50,
+			})
+			require.NoError(t, err)
+			require.Len(t, orders, 1)
+			require.Equal(t, "TODAY", orders[0].DisplayNo)
+		},
+	}
+
+	svc := NewOrder(testDB, time.UTC, publisher)
+	cleared, err := svc.ClearWorkspace(ctx, ownerActor(userID, wsID), true, domain.ClearWorkspaceModeBeforeToday)
+	require.NoError(t, err)
+	require.Equal(t, 1, cleared)
+
+	publisher.mu.Lock()
+	defer publisher.mu.Unlock()
+	require.Len(t, publisher.events, 1)
+	require.Equal(t, domain.ClearWorkspaceModeBeforeToday, publisher.events[0].Mode)
+	require.Equal(t, today.Format("2006-01-02"), publisher.events[0].ClearDateKey)
 }
