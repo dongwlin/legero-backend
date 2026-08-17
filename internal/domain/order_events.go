@@ -32,6 +32,12 @@ type DeletedEvent struct {
 type ClearedEvent struct {
 	ClearedCount int                `json:"clearedCount"`
 	Mode         ClearWorkspaceMode `json:"mode"`
+	// ClearDateKey is the business-day cutoff (YYYY-MM-DD in the workspace
+	// timezone) a before_today clear deleted orders before; empty for 'all'
+	// clears. Clients pin their before_today barrier to this authoritative
+	// server-computed key, so a delayed (cross-midnight) event or a skewed
+	// client clock can never delete orders the server kept.
+	ClearDateKey string `json:"clearDateKey,omitempty"`
 }
 
 // OrderDTO is the JSON-friendly representation of an Order for API responses and events.

@@ -318,7 +318,7 @@ func (s *order) ClearWorkspace(ctx context.Context, actor domain.Actor, confirm 
 
 	var cleared int
 	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		count, err := s.clearWorkspaceInTx(ctx, tx, actor, resolvedMode, clearBefore)
+		count, err := s.clearWorkspaceInTx(ctx, tx, actor, clearBefore)
 		if err != nil {
 			return err
 		}
@@ -328,15 +328,43 @@ func (s *order) ClearWorkspace(ctx context.Context, actor domain.Actor, confirm 
 		return 0, apperr.InternalError("failed to clear workspace orders", err)
 	}
 
+	// The delete committed: only now is the cleared state durable and
+	// observable to other transactions (e.g. the follow-up snapshot a client
+	// starts as soon as it receives this event). Publishing inside the
+	// transaction would let such a snapshot race the commit and read the
+	// pre-clear rows, breaking the client-side full-clear epoch barrier (the
+	// snapshot would be treated as guaranteed post-clear and reaffirm ids
+	// the not-yet-committed clear deleted). This matches the
+	// commit-then-publish ordering of Create, Update and Remove.
+	if s.publisher != nil {
+		// The before_today cutoff is the server's authoritative business day:
+		// carry it (YYYY-MM-DD in the workspace timezone) so clients pin
+		// their barrier to the date the clear actually used — a delayed,
+		// cross-midnight event or a skewed client clock must never re-derive
+		// a different boundary. Empty for 'all' clears.
+		clearDateKey := ""
+		if clearBefore != nil {
+			clearDateKey = clearBefore.Format("2006-01-02")
+		}
+
+		s.publisher.Publish(actor.WorkspaceID, domain.EventOrderCleared, domain.ClearedEvent{
+			ClearedCount: cleared,
+			Mode:         resolvedMode,
+			ClearDateKey: clearDateKey,
+		})
+	}
+
 	return cleared, nil
 }
 
-// clearWorkspaceInTx performs the workspace clear within an existing transaction.
+// clearWorkspaceInTx performs the workspace clear within an existing
+// transaction. It only mutates the database — the caller publishes the
+// realtime event after the transaction commits, so a client that reacts to
+// the event can never observe the pre-clear state (see ClearWorkspace).
 func (s *order) clearWorkspaceInTx(
 	ctx context.Context,
 	db bun.IDB,
 	actor domain.Actor,
-	mode domain.ClearWorkspaceMode,
 	clearBefore *time.Time,
 ) (int, error) {
 	orderRepo := repo.NewOrder(db)
@@ -347,13 +375,6 @@ func (s *order) clearWorkspaceInTx(
 	counterRepo := repo.NewCounter(db)
 	if err := counterRepo.ResetWorkspace(ctx, actor.WorkspaceID, clearBefore); err != nil {
 		return 0, err
-	}
-
-	if s.publisher != nil {
-		s.publisher.Publish(actor.WorkspaceID, domain.EventOrderCleared, domain.ClearedEvent{
-			ClearedCount: count,
-			Mode:         mode,
-		})
 	}
 
 	return count, nil
