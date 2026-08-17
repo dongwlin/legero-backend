@@ -177,10 +177,13 @@ func TestNewAuth_RequiresAccessLoaderFactory(t *testing.T) {
 func createTestUser(t *testing.T, ctx context.Context, db bun.IDB, opts ...func(*domain.User)) uuid.UUID {
 	t.Helper()
 
+	passwordHash, err := crypto.NewPasswordHasher().Hash("password123")
+	require.NoError(t, err)
+
 	user := domain.User{
 		ID:           uuid.New(),
 		Phone:        fmt.Sprintf("1%s", uuid.New().String()[:11]),
-		PasswordHash: crypto.MustHashForTests("password123"),
+		PasswordHash: passwordHash,
 		IsActive:     true,
 		Version:      1,
 		CreatedAt:    time.Now(),
