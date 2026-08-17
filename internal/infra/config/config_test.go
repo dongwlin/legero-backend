@@ -31,9 +31,6 @@ ws:
   allowedOrigins:
     - "http://localhost:5173"
     - "capacitor://localhost"
-argon2:
-  iterations: 5
-  parallelism: 4
 `, encodedKey(t, "0123456789abcdef0123456789abcdef")))
 
 	cfg, err := loadFromFile(configPath)
@@ -77,21 +74,6 @@ argon2:
 	if cfg.WSAllowedOrigins[0] != "http://localhost:5173" || cfg.WSAllowedOrigins[1] != "capacitor://localhost" {
 		t.Fatalf("WSAllowedOrigins = %v, want configured origins", cfg.WSAllowedOrigins)
 	}
-	if cfg.Argon2.MemoryKiB != 64*1024 {
-		t.Fatalf("Argon2.MemoryKiB = %d, want %d", cfg.Argon2.MemoryKiB, 64*1024)
-	}
-	if cfg.Argon2.Iterations != 5 {
-		t.Fatalf("Argon2.Iterations = %d, want %d", cfg.Argon2.Iterations, 5)
-	}
-	if cfg.Argon2.Parallelism != 4 {
-		t.Fatalf("Argon2.Parallelism = %d, want %d", cfg.Argon2.Parallelism, 4)
-	}
-	if cfg.Argon2.SaltLength != 16 {
-		t.Fatalf("Argon2.SaltLength = %d, want %d", cfg.Argon2.SaltLength, 16)
-	}
-	if cfg.Argon2.KeyLength != 32 {
-		t.Fatalf("Argon2.KeyLength = %d, want %d", cfg.Argon2.KeyLength, 32)
-	}
 }
 
 func TestLoadFromFileEnvOverridesYAML(t *testing.T) {
@@ -108,8 +90,6 @@ auth:
   pasetoSymmetricKey: "%s"
   accessTokenTTL: "15m"
   refreshTokenTTL: "720h"
-argon2:
-  iterations: 3
 `, encodedKey(t, "0123456789abcdef0123456789abcdef")))
 
 	overrideKey := encodedKey(t, "abcdefghijklmnopqrstuvwxzy012345")
@@ -120,7 +100,6 @@ argon2:
 	t.Setenv("ACCESS_TOKEN_TTL", "45m")
 	t.Setenv("REALTIME_HEARTBEAT_INTERVAL", "25s")
 	t.Setenv("WS_ALLOWED_ORIGINS", "https://app.example.com,capacitor://localhost")
-	t.Setenv("ARGON2_ITERATIONS", "9")
 
 	cfg, err := loadFromFile(configPath)
 	if err != nil {
@@ -148,9 +127,6 @@ argon2:
 	if cfg.WSAllowedOrigins[0] != "https://app.example.com" || cfg.WSAllowedOrigins[1] != "capacitor://localhost" {
 		t.Fatalf("WSAllowedOrigins = %v, want env override", cfg.WSAllowedOrigins)
 	}
-	if cfg.Argon2.Iterations != 9 {
-		t.Fatalf("Argon2.Iterations = %d, want %d", cfg.Argon2.Iterations, 9)
-	}
 	wantKey, err := base64.StdEncoding.DecodeString(overrideKey)
 	if err != nil {
 		t.Fatalf("DecodeString() error = %v", err)
@@ -177,12 +153,6 @@ ws:
   writeTimeout: "bad"
   readTimeout: "bad"
   allowedOrigins: ""
-argon2:
-  memoryKiB: "bad"
-  iterations: "bad"
-  parallelism: "bad"
-  saltLength: "bad"
-  keyLength: "bad"
 `, encodedKey(t, "0123456789abcdef0123456789abcdef")))
 
 	cfg, err := loadFromFile(configPath)
@@ -210,21 +180,6 @@ argon2:
 	}
 	if len(cfg.WSAllowedOrigins) != 1 || cfg.WSAllowedOrigins[0] != "*" {
 		t.Fatalf("WSAllowedOrigins = %v, want [*]", cfg.WSAllowedOrigins)
-	}
-	if cfg.Argon2.MemoryKiB != 64*1024 {
-		t.Fatalf("Argon2.MemoryKiB = %d, want %d", cfg.Argon2.MemoryKiB, 64*1024)
-	}
-	if cfg.Argon2.Iterations != 3 {
-		t.Fatalf("Argon2.Iterations = %d, want %d", cfg.Argon2.Iterations, 3)
-	}
-	if cfg.Argon2.Parallelism != 2 {
-		t.Fatalf("Argon2.Parallelism = %d, want %d", cfg.Argon2.Parallelism, 2)
-	}
-	if cfg.Argon2.SaltLength != 16 {
-		t.Fatalf("Argon2.SaltLength = %d, want %d", cfg.Argon2.SaltLength, 16)
-	}
-	if cfg.Argon2.KeyLength != 32 {
-		t.Fatalf("Argon2.KeyLength = %d, want %d", cfg.Argon2.KeyLength, 32)
 	}
 }
 
@@ -280,11 +235,6 @@ func clearConfigEnv(t *testing.T) {
 		"WS_WRITE_TIMEOUT",
 		"WS_READ_TIMEOUT",
 		"WS_ALLOWED_ORIGINS",
-		"ARGON2_MEMORY_KIB",
-		"ARGON2_ITERATIONS",
-		"ARGON2_PARALLELISM",
-		"ARGON2_SALT_LENGTH",
-		"ARGON2_KEY_LENGTH",
 	} {
 		t.Setenv(envName, "")
 	}

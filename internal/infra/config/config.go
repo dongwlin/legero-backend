@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,15 +28,6 @@ type Config struct {
 	WSWriteTimeout            time.Duration
 	WSReadTimeout             time.Duration
 	WSAllowedOrigins          []string
-	Argon2                    Argon2Config
-}
-
-type Argon2Config struct {
-	MemoryKiB   uint32
-	Iterations  uint32
-	Parallelism uint8
-	SaltLength  uint32
-	KeyLength   uint32
 }
 
 func Load() (*Config, error) {
@@ -99,11 +89,6 @@ func bindEnv(v *viper.Viper) error {
 		"ws.writeTimeout":            "WS_WRITE_TIMEOUT",
 		"ws.readTimeout":             "WS_READ_TIMEOUT",
 		"ws.allowedOrigins":          "WS_ALLOWED_ORIGINS",
-		"argon2.memoryKiB":           "ARGON2_MEMORY_KIB",
-		"argon2.iterations":          "ARGON2_ITERATIONS",
-		"argon2.parallelism":         "ARGON2_PARALLELISM",
-		"argon2.saltLength":          "ARGON2_SALT_LENGTH",
-		"argon2.keyLength":           "ARGON2_KEY_LENGTH",
 	}
 
 	for key, envName := range bindings {
@@ -147,13 +132,6 @@ func buildConfig(v *viper.Viper) (*Config, error) {
 		WSWriteTimeout:            durationOrDefault(v, "ws.writeTimeout", 10*time.Second),
 		WSReadTimeout:             durationOrDefault(v, "ws.readTimeout", 60*time.Second),
 		WSAllowedOrigins:          stringSliceOrDefault(v, "ws.allowedOrigins", []string{"*"}),
-		Argon2: Argon2Config{
-			MemoryKiB:   uint32OrDefault(v, "argon2.memoryKiB", 64*1024),
-			Iterations:  uint32OrDefault(v, "argon2.iterations", 3),
-			Parallelism: uint8(uint32OrDefault(v, "argon2.parallelism", 2)),
-			SaltLength:  uint32OrDefault(v, "argon2.saltLength", 16),
-			KeyLength:   uint32OrDefault(v, "argon2.keyLength", 32),
-		},
 	}, nil
 }
 
@@ -184,19 +162,6 @@ func durationOrDefault(v *viper.Viper, path string, fallback time.Duration) time
 		return fallback
 	}
 	return parsed
-}
-
-func uint32OrDefault(v *viper.Viper, path string, fallback uint32) uint32 {
-	value := stringValue(v, path)
-	if value == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.ParseUint(value, 10, 32)
-	if err != nil {
-		return fallback
-	}
-	return uint32(parsed)
 }
 
 func stringValue(v *viper.Viper, path string) string {

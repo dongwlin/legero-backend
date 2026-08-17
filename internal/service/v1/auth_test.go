@@ -14,7 +14,6 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
-	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/crypto"
 	"github.com/dongwlin/legero-backend/internal/infra/database"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
@@ -140,13 +139,7 @@ func newTestServiceFull(
 	_, err := rand.Read(keyBytes)
 	require.NoError(t, err)
 
-	hasher := crypto.NewPasswordHasher(config.Argon2Config{
-		MemoryKiB:   8 * 1024,
-		Iterations:  1,
-		Parallelism: 1,
-		SaltLength:  16,
-		KeyLength:   32,
-	})
+	hasher := crypto.NewPasswordHasher()
 
 	svc, err := NewAuth(
 		db,
@@ -171,13 +164,7 @@ func TestNewAuth_RequiresAccessLoaderFactory(t *testing.T) {
 		testDB,
 		nil,
 		&mockOrderLoader{},
-		crypto.NewPasswordHasher(config.Argon2Config{
-			MemoryKiB:   8 * 1024,
-			Iterations:  1,
-			Parallelism: 1,
-			SaltLength:  16,
-			KeyLength:   32,
-		}),
+		crypto.NewPasswordHasher(),
 		time.UTC,
 		15*time.Minute,
 		7*24*time.Hour,
@@ -406,13 +393,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	_, err := rand.Read(keyBytes)
 	require.NoError(t, err)
 
-	hasher := crypto.NewPasswordHasher(config.Argon2Config{
-		MemoryKiB:   8 * 1024,
-		Iterations:  1,
-		Parallelism: 1,
-		SaltLength:  16,
-		KeyLength:   32,
-	})
+	hasher := crypto.NewPasswordHasher()
 
 	svc, err := NewAuth(
 		testDB,

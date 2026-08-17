@@ -32,7 +32,7 @@ func InitializeApplication() (*Application, func(), error) {
 	}
 	broker := ProvideBroker()
 	order := v1.NewOrder(db, location, broker)
-	passwordHasher := ProvidePasswordHasher(configConfig)
+	passwordHasher := ProvidePasswordHasher()
 	tokenTTL := ProvideTokenTTL(configConfig)
 	v := ProvidePasetoKey(configConfig)
 	auth, err := ProvideAuth(db, order, passwordHasher, location, tokenTTL, v)
@@ -64,7 +64,7 @@ func InitializeUserCreator() (*UserCreator, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	passwordHasher := ProvidePasswordHasher(configConfig)
+	passwordHasher := ProvidePasswordHasher()
 	user := v1.NewUser(db, passwordHasher)
 	userCreator := NewUserCreator(user)
 	return userCreator, func() {

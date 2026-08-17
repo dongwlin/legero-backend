@@ -8,23 +8,28 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+)
 
-	"github.com/dongwlin/legero-backend/internal/infra/config"
+const (
+	argon2MemoryKiB   uint32 = 64 * 1024
+	argon2Iterations  uint32 = 3
+	argon2Parallelism uint8  = 2
+	argon2SaltLength  uint32 = 16
+	argon2KeyLength   uint32 = 32
 )
 
 // PasswordHasher hashes and compares passwords using Argon2id.
-type PasswordHasher struct {
-	config config.Argon2Config
-}
+type PasswordHasher struct{}
 
-// NewPasswordHasher creates a new PasswordHasher with the given Argon2 configuration.
-func NewPasswordHasher(cfg config.Argon2Config) *PasswordHasher {
-	return &PasswordHasher{config: cfg}
+// NewPasswordHasher creates a PasswordHasher with the application's fixed
+// Argon2id parameters.
+func NewPasswordHasher() *PasswordHasher {
+	return &PasswordHasher{}
 }
 
 // Hash returns an Argon2id encoded hash of password.
 func (h *PasswordHasher) Hash(password string) (string, error) {
-	salt := make([]byte, h.config.SaltLength)
+	salt := make([]byte, argon2SaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("read password salt: %w", err)
 	}
@@ -32,10 +37,10 @@ func (h *PasswordHasher) Hash(password string) (string, error) {
 	hash := argon2.IDKey(
 		[]byte(password),
 		salt,
-		h.config.Iterations,
-		h.config.MemoryKiB,
-		h.config.Parallelism,
-		h.config.KeyLength,
+		argon2Iterations,
+		argon2MemoryKiB,
+		argon2Parallelism,
+		argon2KeyLength,
 	)
 
 	saltEncoded := base64.RawStdEncoding.EncodeToString(salt)
@@ -44,9 +49,9 @@ func (h *PasswordHasher) Hash(password string) (string, error) {
 	return fmt.Sprintf(
 		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version,
-		h.config.MemoryKiB,
-		h.config.Iterations,
-		h.config.Parallelism,
+		argon2MemoryKiB,
+		argon2Iterations,
+		argon2Parallelism,
 		saltEncoded,
 		hashEncoded,
 	), nil
@@ -74,41 +79,47 @@ func (h *PasswordHasher) Compare(password, encodedHash string) (bool, error) {
 	return false, nil
 }
 
-func decodeHash(encodedHash string) (config.Argon2Config, []byte, []byte, error) {
+type argon2HashParams struct {
+	MemoryKiB   uint32
+	Iterations  uint32
+	Parallelism uint8
+	KeyLength   uint32
+}
+
+func decodeHash(encodedHash string) (argon2HashParams, []byte, []byte, error) {
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("invalid password hash format")
+		return argon2HashParams{}, nil, nil, fmt.Errorf("invalid password hash format")
 	}
 	if parts[1] != "argon2id" {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("unsupported password hash algorithm")
+		return argon2HashParams{}, nil, nil, fmt.Errorf("unsupported password hash algorithm")
 	}
 
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil || version != argon2.Version {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("unsupported password hash version")
+		return argon2HashParams{}, nil, nil, fmt.Errorf("unsupported password hash version")
 	}
 
 	var memory uint32
 	var iterations uint32
 	var parallelism uint8
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism); err != nil {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("invalid password hash parameters")
+		return argon2HashParams{}, nil, nil, fmt.Errorf("invalid password hash parameters")
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("decode password salt: %w", err)
+		return argon2HashParams{}, nil, nil, fmt.Errorf("decode password salt: %w", err)
 	}
 	hash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return config.Argon2Config{}, nil, nil, fmt.Errorf("decode password hash: %w", err)
+		return argon2HashParams{}, nil, nil, fmt.Errorf("decode password hash: %w", err)
 	}
 
-	return config.Argon2Config{
+	return argon2HashParams{
 		MemoryKiB:   memory,
 		Iterations:  iterations,
 		Parallelism: parallelism,
-		SaltLength:  uint32(len(salt)),
 		KeyLength:   uint32(len(hash)),
 	}, salt, hash, nil
 }

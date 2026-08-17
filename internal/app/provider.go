@@ -103,8 +103,8 @@ func ProvideNow() func() time.Time {
 }
 
 // ProvidePasswordHasher creates the Argon2 password hasher.
-func ProvidePasswordHasher(cfg *config.Config) *crypto.PasswordHasher {
-	return crypto.NewPasswordHasher(cfg.Argon2)
+func ProvidePasswordHasher() *crypto.PasswordHasher {
+	return crypto.NewPasswordHasher()
 }
 
 // ProvideContext returns the process-wide background context.
