@@ -350,9 +350,20 @@ func (s *order) clearWorkspaceInTx(
 	}
 
 	if s.publisher != nil {
+		// The before_today cutoff is the server's authoritative business day:
+		// carry it (YYYY-MM-DD in the workspace timezone) so clients pin
+		// their barrier to the date the clear actually used — a delayed,
+		// cross-midnight event or a skewed client clock must never re-derive
+		// a different boundary. Empty for 'all' clears.
+		clearDateKey := ""
+		if clearBefore != nil {
+			clearDateKey = clearBefore.Format("2006-01-02")
+		}
+
 		s.publisher.Publish(actor.WorkspaceID, domain.EventOrderCleared, domain.ClearedEvent{
 			ClearedCount: count,
 			Mode:         mode,
+			ClearDateKey: clearDateKey,
 		})
 	}
 
