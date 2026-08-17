@@ -522,7 +522,9 @@ func TestServeWSDeliversHeartbeatToClient(t *testing.T) {
 	require.Equal(t, "ready", ready.Type)
 	var readyData realtime.ReadyPayload
 	require.NoError(t, json.Unmarshal(ready.Data, &readyData))
+	require.Contains(t, readyData.Capabilities, realtime.CapabilityHeartbeat)
 	require.Contains(t, readyData.Capabilities, realtime.CapabilityOrderUpsertMany)
+	require.Equal(t, int64(30), readyData.HeartbeatIntervalMs)
 
 	_, payload, err = conn.ReadMessage()
 	require.NoError(t, err)
@@ -530,12 +532,14 @@ func TestServeWSDeliversHeartbeatToClient(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &heartbeat))
 	require.Equal(t, "heartbeat", heartbeat.Type)
 
-	var data struct {
-		ServerTime string `json:"serverTime"`
-	}
+	var data realtime.HeartbeatPayload
 	require.NoError(t, json.Unmarshal(heartbeat.Data, &data))
 	_, err = time.Parse(time.RFC3339, data.ServerTime)
 	require.NoError(t, err, "heartbeat serverTime %q should be RFC3339", data.ServerTime)
+	var heartbeatFields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(heartbeat.Data, &heartbeatFields))
+	require.Len(t, heartbeatFields, 1, "application heartbeat must retain its serverTime-only payload")
+	require.NotContains(t, heartbeatFields, "heartbeatIntervalMs")
 }
 
 func TestServeWSNegotiatesOrderUpsertMany(t *testing.T) {
@@ -589,7 +593,9 @@ func TestServeWSNegotiatesOrderUpsertMany(t *testing.T) {
 			require.Equal(t, "ready", ready.Type)
 			var readyData realtime.ReadyPayload
 			require.NoError(t, json.Unmarshal(ready.Data, &readyData))
+			require.Contains(t, readyData.Capabilities, realtime.CapabilityHeartbeat)
 			require.Contains(t, readyData.Capabilities, realtime.CapabilityOrderUpsertMany)
+			require.Equal(t, int64(time.Hour/time.Millisecond), readyData.HeartbeatIntervalMs)
 
 			h.broker.Publish(workspaceID, realtime.CapabilityOrderUpsertMany, map[string]any{
 				"items": []map[string]string{{"id": "first"}, {"id": "second"}},

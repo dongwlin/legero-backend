@@ -7,15 +7,94 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSupportedCapabilitiesAdvertisesOrderUpsertMany(t *testing.T) {
+func TestSupportedCapabilitiesAdvertisesHeartbeatAndOrderUpsertMany(t *testing.T) {
 	capabilities := SupportedCapabilities()
-	if len(capabilities) != 1 || capabilities[0] != CapabilityOrderUpsertMany {
-		t.Fatalf("SupportedCapabilities() = %v, want [%q]", capabilities, CapabilityOrderUpsertMany)
+	want := []string{CapabilityHeartbeat, CapabilityOrderUpsertMany}
+	if len(capabilities) != len(want) {
+		t.Fatalf("SupportedCapabilities() = %v, want %v", capabilities, want)
+	}
+	for index, capability := range want {
+		if capabilities[index] != capability {
+			t.Fatalf("SupportedCapabilities() = %v, want %v", capabilities, want)
+		}
 	}
 
 	capabilities[0] = "mutated"
-	if fresh := SupportedCapabilities(); fresh[0] != CapabilityOrderUpsertMany {
+	if fresh := SupportedCapabilities(); len(fresh) != len(want) || fresh[0] != CapabilityHeartbeat || fresh[1] != CapabilityOrderUpsertMany {
 		t.Fatalf("SupportedCapabilities() returned mutable shared state: %v", fresh)
+	}
+}
+
+func TestReadyPayloadJSONContract(t *testing.T) {
+	payload := ReadyPayload{
+		ServerTime:          "2026-08-17T12:34:56+08:00",
+		Capabilities:        []string{CapabilityHeartbeat, CapabilityOrderUpsertMany},
+		HeartbeatIntervalMs: 20_000,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(ReadyPayload) error = %v", err)
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(ReadyPayload) error = %v", err)
+	}
+	if len(decoded) != 3 {
+		t.Fatalf("ReadyPayload JSON fields = %v, want exactly serverTime, capabilities, heartbeatIntervalMs", decoded)
+	}
+
+	var serverTime string
+	if err := json.Unmarshal(decoded["serverTime"], &serverTime); err != nil {
+		t.Fatalf("serverTime JSON error = %v", err)
+	}
+	if serverTime != payload.ServerTime {
+		t.Fatalf("serverTime = %q, want %q", serverTime, payload.ServerTime)
+	}
+
+	var capabilities []string
+	if err := json.Unmarshal(decoded["capabilities"], &capabilities); err != nil {
+		t.Fatalf("capabilities JSON error = %v", err)
+	}
+	if len(capabilities) != 2 || capabilities[0] != CapabilityHeartbeat || capabilities[1] != CapabilityOrderUpsertMany {
+		t.Fatalf("capabilities = %v, want [%q %q]", capabilities, CapabilityHeartbeat, CapabilityOrderUpsertMany)
+	}
+
+	var heartbeatIntervalMs int64
+	if err := json.Unmarshal(decoded["heartbeatIntervalMs"], &heartbeatIntervalMs); err != nil {
+		t.Fatalf("heartbeatIntervalMs JSON error = %v", err)
+	}
+	if heartbeatIntervalMs != 20_000 {
+		t.Fatalf("heartbeatIntervalMs = %d, want 20000", heartbeatIntervalMs)
+	}
+	if _, exists := decoded["heartbeat_interval_ms"]; exists {
+		t.Fatal("ReadyPayload must use camel-case heartbeatIntervalMs JSON field")
+	}
+}
+
+func TestHeartbeatPayloadJSONContract(t *testing.T) {
+	body, err := json.Marshal(HeartbeatPayload{ServerTime: "2026-08-17T12:34:56+08:00"})
+	if err != nil {
+		t.Fatalf("json.Marshal(HeartbeatPayload) error = %v", err)
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(HeartbeatPayload) error = %v", err)
+	}
+	if len(decoded) != 1 {
+		t.Fatalf("HeartbeatPayload JSON fields = %v, want only serverTime", decoded)
+	}
+	var serverTime string
+	if err := json.Unmarshal(decoded["serverTime"], &serverTime); err != nil {
+		t.Fatalf("serverTime JSON error = %v", err)
+	}
+	if serverTime != "2026-08-17T12:34:56+08:00" {
+		t.Fatalf("serverTime = %q, want %q", serverTime, "2026-08-17T12:34:56+08:00")
+	}
+	if _, exists := decoded["heartbeatIntervalMs"]; exists {
+		t.Fatal("HeartbeatPayload must not include ready negotiation fields")
 	}
 }
 

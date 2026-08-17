@@ -169,8 +169,9 @@ func (h *Realtime) ServeWS(c *gin.Context) {
 	h.configureConnection(conn)
 
 	readyMessage, err := realtime.NewMessage("ready", realtime.ReadyPayload{
-		ServerTime:   timex.FormatTime(h.now(), h.location),
-		Capabilities: realtime.SupportedCapabilities(),
+		ServerTime:          timex.FormatTime(h.now(), h.location),
+		Capabilities:        realtime.SupportedCapabilities(),
+		HeartbeatIntervalMs: h.heartbeatInterval.Milliseconds(),
 	})
 	if err != nil {
 		_ = conn.Close()

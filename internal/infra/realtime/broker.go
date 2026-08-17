@@ -23,23 +23,31 @@ type Message struct {
 // messages instead.
 const CapabilityOrderUpsertMany = "order.upsert_many"
 
+// CapabilityHeartbeat identifies the application-level heartbeat sent by the
+// server on the realtime connection. Unlike event capabilities, heartbeat is
+// advertised by the server in the ready payload and does not require a client
+// opt-in query parameter.
+const CapabilityHeartbeat = "heartbeat"
+
 type ReadyPayload struct {
-	ServerTime   string   `json:"serverTime"`
-	Capabilities []string `json:"capabilities,omitempty"`
+	ServerTime          string   `json:"serverTime"`
+	Capabilities        []string `json:"capabilities,omitempty"`
+	HeartbeatIntervalMs int64    `json:"heartbeatIntervalMs"`
 }
 
 // SupportedCapabilities returns the capabilities this server can publish on a
 // realtime connection. Return a fresh slice so callers cannot mutate the
 // server's advertised protocol contract.
 func SupportedCapabilities() []string {
-	return []string{CapabilityOrderUpsertMany}
+	return []string{CapabilityHeartbeat, CapabilityOrderUpsertMany}
 }
 
 // HeartbeatPayload is the lightweight application-level heartbeat pushed on
 // the write loop so clients can refresh lastServerActivityAt and detect
-// half-open connections without reading protocol-level control frames. It
-// carries the same serverTime shape as ReadyPayload.
-type HeartbeatPayload = ReadyPayload
+// half-open connections without reading protocol-level control frames.
+type HeartbeatPayload struct {
+	ServerTime string `json:"serverTime"`
+}
 
 type subscriber struct {
 	channel  chan Message
