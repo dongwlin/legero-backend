@@ -14,6 +14,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
+	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 )
 
@@ -58,6 +59,46 @@ func TestFormatPeakMinuteKeepsWallClockLabels(t *testing.T) {
 			require.Equal(t, test.want, formatPeakMinute(test.minute))
 		})
 	}
+}
+
+func TestToReportDTOFormatsRankedPeakBucketsAsAPIJSON(t *testing.T) {
+	location := time.FixedZone("CST", 8*60*60)
+	window := domain.NewDayReportWindow(time.Date(2026, 8, 18, 12, 0, 0, 0, location), location)
+	report := domain.Report{
+		Period:  window.Period,
+		Date:    window.Date,
+		StartAt: window.StartAt,
+		EndAt:   window.EndAt,
+		Metrics: domain.ReportMetrics{
+			Peak30MinuteBuckets: []domain.Peak30MinuteBucket{
+				{StartMinute: 9 * 60, EndMinute: 9*60 + 30, OrderCount: 4},
+				{StartMinute: 10 * 60, EndMinute: 10*60 + 30, OrderCount: 4},
+				{StartMinute: 23*60 + 30, EndMinute: 24 * 60, OrderCount: 1},
+			},
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/stats/report?period=day&date=2026-08-18", nil)
+	ctx.Set(identity.GinContextKey, &identity.Context{WorkspaceID: uuid.New()})
+
+	handler := NewStatsHandler(statsServiceStub{
+		reportFn: func(context.Context, uuid.UUID, domain.ReportQuery) (*domain.Report, error) {
+			return &report, nil
+		},
+	}, location)
+	handler.Report(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var body dto.ReportResponse
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	require.Equal(t, []dto.Peak30Minute{
+		{Start: "09:00", End: "09:30", OrderCount: 4},
+		{Start: "10:00", End: "10:30", OrderCount: 4},
+		{Start: "23:30", End: "00:00", OrderCount: 1},
+	}, body.Metrics.Peak30MinuteBuckets)
 }
 
 func TestStatsHandlerReportReturnsUnsupportedPeriodCode(t *testing.T) {
