@@ -13,6 +13,8 @@ import (
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
+const maxDailyStatsRangeMessage = "date range exceeds maximum allowed span"
+
 // stats implements service.Stats.
 type stats struct {
 	db          *bun.DB
@@ -42,6 +44,9 @@ func (s *stats) Daily(ctx context.Context, workspaceID uuid.UUID, from, to time.
 	if err != nil {
 		return nil, apperr.ValidationError(err.Error())
 	}
+	if dailyStatsBusinessDateCount(from, to, s.location) > service.MaxDailyStatsDays {
+		return nil, apperr.ValidationError(maxDailyStatsRangeMessage)
+	}
 
 	statsRepo := repo.NewStats(s.db)
 	rows, err := statsRepo.DailyWindow(ctx, workspaceID, s.timezone, window)
@@ -49,6 +54,23 @@ func (s *stats) Daily(ctx context.Context, workspaceID uuid.UUID, from, to time.
 		return nil, apperr.InternalError("failed to load daily stats", err)
 	}
 	return rows, nil
+}
+
+// dailyStatsBusinessDateCount returns the inclusive count of business dates
+// represented by from and to in location. The calculation uses UTC calendar
+// midnights so daylight-saving transitions in the business timezone do not
+// turn a date into a fractional 23- or 25-hour duration.
+func dailyStatsBusinessDateCount(from, to time.Time, location *time.Location) int64 {
+	fromLocal := from.In(location)
+	toLocal := to.In(location)
+	fromOrdinal := businessDateOrdinal(fromLocal)
+	toOrdinal := businessDateOrdinal(toLocal)
+	return toOrdinal - fromOrdinal + 1
+}
+
+func businessDateOrdinal(date time.Time) int64 {
+	const secondsPerDay = int64(24 * time.Hour / time.Second)
+	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC).Unix() / secondsPerDay
 }
 
 // Report returns the currently supported period report. The query shape is

@@ -104,6 +104,62 @@ func TestAggregateReportZeroOrders(t *testing.T) {
 	require.Equal(t, 0, metrics.Customizations.Union.Denominator)
 }
 
+func TestAggregateReportPeak30MinuteBoundariesAndEarliestTie(t *testing.T) {
+	location := time.FixedZone("CST", 8*60*60)
+	window := NewDayReportWindow(time.Date(2026, 8, 18, 0, 0, 0, 0, location), location)
+
+	tests := []struct {
+		name       string
+		completed  []time.Duration
+		wantStart  string
+		wantEnd    string
+		wantOrders int
+	}{
+		{
+			name:       "09:29 remains in the 09:00 bucket",
+			completed:  []time.Duration{9*time.Hour + 29*time.Minute},
+			wantStart:  "09:00",
+			wantEnd:    "09:30",
+			wantOrders: 1,
+		},
+		{
+			name:       "09:30 starts the next bucket",
+			completed:  []time.Duration{9*time.Hour + 30*time.Minute},
+			wantStart:  "09:30",
+			wantEnd:    "10:00",
+			wantOrders: 1,
+		},
+		{
+			name:       "ties retain the earlier bucket",
+			completed:  []time.Duration{9*time.Hour + 5*time.Minute, 9*time.Hour + 35*time.Minute},
+			wantStart:  "09:00",
+			wantEnd:    "09:30",
+			wantOrders: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			orders := make([]ReportOrder, 0, len(test.completed))
+			for _, offset := range test.completed {
+				completedAt := window.StartAt.Add(offset)
+				createdAt := completedAt.Add(-time.Minute)
+				orders = append(orders, ReportOrder{
+					CreatedAt:   createdAt,
+					CompletedAt: &completedAt,
+				})
+			}
+
+			report := AggregateReport(window, orders, location)
+			require.Len(t, report.Metrics.Peak30MinuteBuckets, 1)
+			peak := report.Metrics.Peak30MinuteBuckets[0]
+			require.Equal(t, test.wantStart, peak.StartAt.Format("15:04"))
+			require.Equal(t, test.wantEnd, peak.EndAt.Format("15:04"))
+			require.Equal(t, test.wantOrders, peak.OrderCount)
+		})
+	}
+}
+
 func TestNewDailyReportWindowPreservesBusinessDateRange(t *testing.T) {
 	location := time.FixedZone("CST", 8*60*60)
 	from := time.Date(2026, 8, 18, 23, 55, 0, 0, time.UTC)

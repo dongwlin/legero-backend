@@ -147,6 +147,56 @@ func TestStatsCompletedOrders_UsesHalfOpenRangeAndWorkspaceIsolation(t *testing.
 	require.True(t, orders[0].CompletedAt.Equal(start))
 }
 
+// TestStatsCompletedOrders_RoundTripsReportProjectionFields verifies the
+// PostgreSQL -> Bun -> domain projection used by service.Report. In
+// particular, selected_meat_codes exercises the smallint[] scan rather than
+// only the scalar fields that are also present in the daily query.
+func TestStatsCompletedOrders_RoundTripsReportProjectionFields(t *testing.T) {
+	ctx := context.Background()
+	location, err := time.LoadLocation("Asia/Shanghai")
+	require.NoError(t, err)
+
+	tx, _ := newTestOrderRepo(t, ctx)
+	statsRepo := NewStats(tx)
+	userID := createTestUser(t, ctx, tx)
+	workspaceID := createTestWorkspace(t, ctx, tx)
+
+	start := time.Date(2026, 8, 18, 0, 0, 0, 0, location)
+	end := start.AddDate(0, 0, 1)
+	stapleType := domain.StapleTypeYiNoodle
+	createdAt := start.Add(8*time.Hour + 7*time.Minute + 3*time.Second)
+	completedAt := start.Add(9*time.Hour + 29*time.Minute + 11*time.Second)
+	wantMeatCodes := []int16{domain.MeatLeanPork, domain.MeatBloodCurd, domain.MeatKidney}
+
+	createTestOrder(t, ctx, tx, workspaceID, userID, func(order *domain.Order) {
+		order.DisplayNo = "REPORT-PROJECTION"
+		order.StapleTypeCode = &stapleType
+		order.SizeCode = domain.SizeLarge
+		order.FriedEggCount = 3
+		order.DiningMethodCode = domain.DiningMethodTakeout
+		order.SelectedMeatCodes = wantMeatCodes
+		order.CreatedAt = createdAt
+		order.CompletedAt = &completedAt
+		order.TotalPriceCents = 4321
+	})
+
+	orders, err := statsRepo.CompletedOrders(ctx, workspaceID, start, end)
+	require.NoError(t, err)
+	require.Len(t, orders, 1)
+
+	got := orders[0]
+	require.Equal(t, 4321, got.TotalPriceCents)
+	require.NotNil(t, got.StapleTypeCode)
+	require.Equal(t, stapleType, *got.StapleTypeCode)
+	require.Equal(t, domain.SizeLarge, got.SizeCode)
+	require.Equal(t, int16(3), got.FriedEggCount)
+	require.Equal(t, domain.DiningMethodTakeout, got.DiningMethodCode)
+	require.Equal(t, wantMeatCodes, got.SelectedMeatCodes)
+	require.True(t, createdAt.Equal(got.CreatedAt))
+	require.NotNil(t, got.CompletedAt)
+	require.True(t, completedAt.Equal(*got.CompletedAt))
+}
+
 func TestStatsReflectsOrderMutationsImmediately(t *testing.T) {
 	ctx := context.Background()
 	location, err := time.LoadLocation("Asia/Shanghai")
