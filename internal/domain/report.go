@@ -195,9 +195,10 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 		if order.DiningMethodCode == DiningMethodTakeout {
 			metrics.Takeout.Count++
 		}
-		if order.SizeCode == SizeCustom {
+		switch order.SizeCode {
+		case SizeCustom:
 			metrics.StandardSize.CustomCount++
-		} else if order.SizeCode == SizeSmall || order.SizeCode == SizeMedium || order.SizeCode == SizeLarge {
+		case SizeSmall, SizeMedium, SizeLarge:
 			metrics.StandardSize.StandardCount++
 			switch order.SizeCode {
 			case SizeSmall:
