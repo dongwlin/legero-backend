@@ -162,9 +162,9 @@ func TestStatsService_ReportCoversAllM1Metrics(t *testing.T) {
 
 	require.Equal(t, []domain.Peak30MinuteBucket{
 		{
-			StartAt:    start.Add(9*time.Hour + 30*time.Minute),
-			EndAt:      start.Add(10 * time.Hour),
-			OrderCount: 2,
+			StartMinute: 9*60 + 30,
+			EndMinute:   10 * 60,
+			OrderCount:  2,
 		},
 	}, metrics.Peak30MinuteBuckets)
 	require.Equal(t, []domain.StapleSale{

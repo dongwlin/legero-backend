@@ -65,7 +65,8 @@ func TestAggregateReportUsesCompletedAtWindowAndCalculatesMetrics(t *testing.T) 
 	require.Equal(t, 967, metrics.AverageOrderValueCents)
 	require.Equal(t, 32400, metrics.AveragePreparationSeconds)
 	require.Len(t, metrics.Peak30MinuteBuckets, 1)
-	require.Equal(t, "09:00", metrics.Peak30MinuteBuckets[0].StartAt.Format("15:04"))
+	require.Equal(t, 9*60, metrics.Peak30MinuteBuckets[0].StartMinute)
+	require.Equal(t, 9*60+30, metrics.Peak30MinuteBuckets[0].EndMinute)
 	require.Equal(t, 2, metrics.Peak30MinuteBuckets[0].OrderCount)
 	require.Equal(t, 1, metrics.Takeout.Count)
 	require.Equal(t, 3, metrics.Takeout.Denominator)
@@ -153,9 +154,89 @@ func TestAggregateReportPeak30MinuteBoundariesAndEarliestTie(t *testing.T) {
 			report := AggregateReport(window, orders, location)
 			require.Len(t, report.Metrics.Peak30MinuteBuckets, 1)
 			peak := report.Metrics.Peak30MinuteBuckets[0]
-			require.Equal(t, test.wantStart, peak.StartAt.Format("15:04"))
-			require.Equal(t, test.wantEnd, peak.EndAt.Format("15:04"))
+			require.Equal(t, parseClockMinute(test.wantStart), peak.StartMinute)
+			require.Equal(t, parseClockMinute(test.wantEnd), peak.EndMinute)
 			require.Equal(t, test.wantOrders, peak.OrderCount)
+		})
+	}
+}
+
+func TestAggregateReportPeakUsesWallClockMinutesAcrossDST(t *testing.T) {
+	location, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	fallFirst, err := time.Parse(time.RFC3339, "2026-11-01T01:40:00-04:00")
+	require.NoError(t, err)
+	fallSecond, err := time.Parse(time.RFC3339, "2026-11-01T01:40:00-05:00")
+	require.NoError(t, err)
+	require.Equal(t, "01:40", fallFirst.In(location).Format("15:04"))
+	require.Equal(t, "01:40", fallSecond.In(location).Format("15:04"))
+
+	tests := []struct {
+		name           string
+		date           time.Time
+		completedAt    []time.Time
+		wantStart      int
+		wantEnd        int
+		wantOrderCount int
+	}{
+		{
+			name: "spring forward 03:10",
+			date: time.Date(2026, 3, 8, 12, 0, 0, 0, location),
+			completedAt: []time.Time{
+				time.Date(2026, 3, 8, 3, 10, 0, 0, location),
+			},
+			wantStart:      3 * 60,
+			wantEnd:        3*60 + 30,
+			wantOrderCount: 1,
+		},
+		{
+			name: "spring forward 01:40 nominal end 02:00",
+			date: time.Date(2026, 3, 8, 12, 0, 0, 0, location),
+			completedAt: []time.Time{
+				time.Date(2026, 3, 8, 1, 40, 0, 0, location),
+			},
+			wantStart:      90,
+			wantEnd:        120,
+			wantOrderCount: 1,
+		},
+		{
+			name:           "fall back repeated 01:40",
+			date:           time.Date(2026, 11, 1, 12, 0, 0, 0, location),
+			completedAt:    []time.Time{fallFirst, fallSecond},
+			wantStart:      90,
+			wantEnd:        120,
+			wantOrderCount: 2,
+		},
+		{
+			name: "last bucket ends at next midnight",
+			date: time.Date(2026, 3, 8, 12, 0, 0, 0, location),
+			completedAt: []time.Time{
+				time.Date(2026, 3, 8, 23, 40, 0, 0, location),
+			},
+			wantStart:      23*60 + 30,
+			wantEnd:        24 * 60,
+			wantOrderCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			window := NewDayReportWindow(test.date, location)
+			orders := make([]ReportOrder, 0, len(test.completedAt))
+			for _, completedAt := range test.completedAt {
+				completedAt := completedAt
+				orders = append(orders, ReportOrder{
+					CreatedAt:   completedAt.Add(-time.Minute),
+					CompletedAt: &completedAt,
+				})
+			}
+
+			report := AggregateReport(window, orders, location)
+			require.Len(t, report.Metrics.Peak30MinuteBuckets, 1)
+			peak := report.Metrics.Peak30MinuteBuckets[0]
+			require.Equal(t, test.wantStart, peak.StartMinute)
+			require.Equal(t, test.wantEnd, peak.EndMinute)
+			require.Equal(t, test.wantOrderCount, peak.OrderCount)
 		})
 	}
 }
@@ -176,4 +257,9 @@ func ptrInt16(value int16) *int16 {
 
 func timePtr(value time.Time) *time.Time {
 	return &value
+}
+
+func parseClockMinute(value string) int {
+	return int(value[0]-'0')*600 + int(value[1]-'0')*60 +
+		int(value[3]-'0')*10 + int(value[4]-'0')
 }

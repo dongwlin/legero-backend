@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -101,8 +102,8 @@ func toReportDTO(report domain.Report, location *time.Location) dto.ReportRespon
 	peakBuckets := make([]dto.Peak30Minute, 0, len(metrics.Peak30MinuteBuckets))
 	for _, bucket := range metrics.Peak30MinuteBuckets {
 		peakBuckets = append(peakBuckets, dto.Peak30Minute{
-			Start:      bucket.StartAt.In(location).Format("15:04"),
-			End:        bucket.EndAt.In(location).Format("15:04"),
+			Start:      formatPeakMinute(bucket.StartMinute),
+			End:        formatPeakMinute(bucket.EndMinute),
 			OrderCount: bucket.OrderCount,
 		})
 	}
@@ -143,6 +144,15 @@ func toReportDTO(report domain.Report, location *time.Location) dto.ReportRespon
 			},
 		},
 	}
+}
+
+func formatPeakMinute(minute int) string {
+	const minutesPerDay = 24 * 60
+	minute %= minutesPerDay
+	if minute < 0 {
+		minute += minutesPerDay
+	}
+	return fmt.Sprintf("%02d:%02d", minute/60, minute%60)
 }
 
 func toRatioMetric(metric domain.RatioMetric) dto.RatioMetric {

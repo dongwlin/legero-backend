@@ -44,6 +44,22 @@ func TestToReportDTOUsesInclusiveBusinessDatesAndStableEmptyArrays(t *testing.T)
 	require.Equal(t, 0, dtoReport.Metrics.StandardSize.Small.Denominator)
 }
 
+func TestFormatPeakMinuteKeepsWallClockLabels(t *testing.T) {
+	for _, test := range []struct {
+		minute int
+		want   string
+	}{
+		{minute: 0, want: "00:00"},
+		{minute: 90, want: "01:30"},
+		{minute: 120, want: "02:00"},
+		{minute: 1440, want: "00:00"},
+	} {
+		t.Run(test.want, func(t *testing.T) {
+			require.Equal(t, test.want, formatPeakMinute(test.minute))
+		})
+	}
+}
+
 func TestStatsHandlerReportReturnsUnsupportedPeriodCode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

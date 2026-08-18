@@ -92,12 +92,13 @@ type ReportOrder struct {
 }
 
 // Peak30MinuteBucket is the busiest half-hour bucket in the report window.
-// StartAt and EndAt use the business timezone and are formatted by the API
-// adapter as HH:mm.
+// StartMinute and EndMinute are wall-clock minutes from the business day's
+// midnight. Keeping labels as minutes avoids fabricating instants for
+// daylight-saving gaps/folds; the API adapter formats them as HH:mm.
 type Peak30MinuteBucket struct {
-	StartAt    time.Time
-	EndAt      time.Time
-	OrderCount int
+	StartMinute int
+	EndMinute   int
+	OrderCount  int
 }
 
 // StapleSale is the completed-order count for one staple type code.
@@ -272,9 +273,9 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 	}
 	if metrics.CompletedOrderCount > 0 {
 		metrics.Peak30MinuteBuckets = append(metrics.Peak30MinuteBuckets, Peak30MinuteBucket{
-			StartAt:    window.StartAt.Add(time.Duration(peakIndex) * 30 * time.Minute),
-			EndAt:      window.StartAt.Add(time.Duration(peakIndex+1) * 30 * time.Minute),
-			OrderCount: peakCounts[peakIndex],
+			StartMinute: peakIndex * 30,
+			EndMinute:   (peakIndex + 1) * 30,
+			OrderCount:  peakCounts[peakIndex],
 		})
 	}
 
