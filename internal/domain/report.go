@@ -91,7 +91,8 @@ type ReportOrder struct {
 	CompletedAt       *time.Time
 }
 
-// Peak30MinuteBucket is the busiest half-hour bucket in the report window.
+// Peak30MinuteBucket is one of the busiest half-hour buckets by order
+// creation time in the report's completed-order set.
 // StartMinute and EndMinute are wall-clock minutes from the business day's
 // midnight. Keeping labels as minutes avoids fabricating instants for
 // daylight-saving gaps/folds; the API adapter formats them as HH:mm.
@@ -177,11 +178,11 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 		StapleTypeRice:           0,
 	}
 	metrics := ReportMetrics{
-		Peak30MinuteBuckets: make([]Peak30MinuteBucket, 0, 1),
+		Peak30MinuteBuckets: make([]Peak30MinuteBucket, 0, maxPeak30MinuteBuckets),
 		StapleSales:         make([]StapleSale, 0, len(stapleCounts)),
 	}
 
-	peakCounts := make([]int, 48)
+	peakCounts := make([]int, peak30MinuteBucketCount)
 	validPreparationCount := 0
 	validPreparationSeconds := 0.0
 	for _, order := range orders {
@@ -231,11 +232,17 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 			metrics.Customizations.Union.Count++
 		}
 
-		completedAt := order.CompletedAt.In(location)
-		minutes := completedAt.Hour()*60 + completedAt.Minute()
-		bucket := minutes / 30
-		if bucket >= 0 && bucket < len(peakCounts) {
-			peakCounts[bucket]++
+		// Report membership remains based on completed_at, while peak periods
+		// describe when orders were placed. The order may have been placed on a
+		// different business date when a completion crosses midnight; its
+		// created_at wall-clock time is still the source for this metric.
+		if !order.CreatedAt.IsZero() {
+			createdAt := order.CreatedAt.In(location)
+			minutes := createdAt.Hour()*60 + createdAt.Minute()
+			bucket := minutes / 30
+			if bucket >= 0 && bucket < len(peakCounts) {
+				peakCounts[bucket]++
+			}
 		}
 
 		if !order.CreatedAt.IsZero() && !order.CompletedAt.Before(order.CreatedAt) {
@@ -265,18 +272,27 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 		metrics.AveragePreparationSeconds = int(math.Round(validPreparationSeconds / float64(validPreparationCount)))
 	}
 
-	peakIndex := 0
-	for idx := 1; idx < len(peakCounts); idx++ {
-		// Strictly greater preserves the earliest bucket on ties.
-		if peakCounts[idx] > peakCounts[peakIndex] {
-			peakIndex = idx
+	peakBuckets := make([]int, 0, len(peakCounts))
+	for idx, count := range peakCounts {
+		if count > 0 {
+			peakBuckets = append(peakBuckets, idx)
 		}
 	}
-	if metrics.CompletedOrderCount > 0 {
+	sort.Slice(peakBuckets, func(i, j int) bool {
+		left, right := peakBuckets[i], peakBuckets[j]
+		if peakCounts[left] != peakCounts[right] {
+			return peakCounts[left] > peakCounts[right]
+		}
+		return left < right
+	})
+	if len(peakBuckets) > maxPeak30MinuteBuckets {
+		peakBuckets = peakBuckets[:maxPeak30MinuteBuckets]
+	}
+	for _, bucket := range peakBuckets {
 		metrics.Peak30MinuteBuckets = append(metrics.Peak30MinuteBuckets, Peak30MinuteBucket{
-			StartMinute: peakIndex * 30,
-			EndMinute:   (peakIndex + 1) * 30,
-			OrderCount:  peakCounts[peakIndex],
+			StartMinute: bucket * 30,
+			EndMinute:   (bucket + 1) * 30,
+			OrderCount:  peakCounts[bucket],
 		})
 	}
 
@@ -300,6 +316,11 @@ func AggregateReport(window ReportWindow, orders []ReportOrder, location *time.L
 		Metrics: metrics,
 	}
 }
+
+const (
+	peak30MinuteBucketCount = 24 * 60 / 30
+	maxPeak30MinuteBuckets  = 5
+)
 
 func ratio(count, denominator int) float64 {
 	if denominator <= 0 {

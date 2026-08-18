@@ -33,7 +33,7 @@ type RatioMetric struct {
 	Ratio       float64 `json:"ratio"`
 }
 
-// Peak30Minute is the busiest completed_at half-hour bucket.
+// Peak30Minute is one of the busiest half-hour buckets by order creation time.
 type Peak30Minute struct {
 	Start      string `json:"start"`
 	End        string `json:"end"`
