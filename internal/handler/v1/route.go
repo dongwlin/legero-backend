@@ -49,5 +49,6 @@ func RegisterRoutes(
 		protected.POST("/orders/actions/clear", orderHandler.Clear)
 		protected.POST("/realtime/session", realtimeHandler.CreateSession)
 		protected.GET("/stats/daily", statsHandler.Daily)
+		protected.GET("/stats/report", statsHandler.Report)
 	}
 }

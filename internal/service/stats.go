@@ -11,4 +11,5 @@ import (
 // Stats provides aggregated order statistics.
 type Stats interface {
 	Daily(ctx context.Context, workspaceID uuid.UUID, from, to time.Time) ([]domain.DailyRow, error)
+	Report(ctx context.Context, workspaceID uuid.UUID, query domain.ReportQuery) (*domain.Report, error)
 }

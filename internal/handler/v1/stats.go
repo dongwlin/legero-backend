@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
+	"github.com/dongwlin/legero-backend/internal/domain"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -60,4 +61,94 @@ func (h *StatsHandler) Daily(c *gin.Context) {
 	httpresp.JSON(c, http.StatusOK, dto.DailyResponse{
 		Items: responseItems,
 	})
+}
+
+// Report returns the selected period report. M1 supports day; the service
+// returns a stable unsupported-period AppError for week/month.
+func (h *StatsHandler) Report(c *gin.Context) {
+	actor, ok := actorFromGin(c)
+	if !ok {
+		httpresp.AbortError(c, apperr.UnauthorizedError("missing auth context"))
+		return
+	}
+
+	period := domain.ReportPeriod(c.Query("period"))
+	if !period.Valid() {
+		httpresp.AbortError(c, apperr.ValidationError("period must be one of day, week, month"))
+		return
+	}
+	date, err := time.ParseInLocation("2006-01-02", c.Query("date"), h.location)
+	if err != nil {
+		httpresp.AbortError(c, apperr.ValidationError("date must use YYYY-MM-DD"))
+		return
+	}
+
+	report, err := h.statsSvc.Report(c.Request.Context(), actor.WorkspaceID, domain.ReportQuery{
+		Period: period,
+		Date:   date,
+	})
+	if err != nil {
+		httpresp.AbortError(c, err)
+		return
+	}
+
+	httpresp.JSON(c, http.StatusOK, toReportDTO(*report, h.location))
+}
+
+func toReportDTO(report domain.Report, location *time.Location) dto.ReportResponse {
+	standard := report.Metrics.StandardSize
+	metrics := report.Metrics
+	peakBuckets := make([]dto.Peak30Minute, 0, len(metrics.Peak30MinuteBuckets))
+	for _, bucket := range metrics.Peak30MinuteBuckets {
+		peakBuckets = append(peakBuckets, dto.Peak30Minute{
+			Start:      bucket.StartAt.In(location).Format("15:04"),
+			End:        bucket.EndAt.In(location).Format("15:04"),
+			OrderCount: bucket.OrderCount,
+		})
+	}
+	stapleSales := make([]dto.StapleSale, 0, len(metrics.StapleSales))
+	for _, sale := range metrics.StapleSales {
+		stapleSales = append(stapleSales, dto.StapleSale{
+			StapleTypeCode: sale.StapleTypeCode,
+			OrderCount:     sale.OrderCount,
+		})
+	}
+
+	return dto.ReportResponse{
+		Period:    string(report.Period),
+		StartDate: report.StartAt.In(location).Format("2006-01-02"),
+		EndDate:   report.EndAt.In(location).Add(-time.Nanosecond).Format("2006-01-02"),
+		Metrics: dto.ReportMetrics{
+			RevenueCents:              metrics.RevenueCents,
+			CompletedOrderCount:       metrics.CompletedOrderCount,
+			AverageOrderValueCents:    metrics.AverageOrderValueCents,
+			AveragePreparationSeconds: metrics.AveragePreparationSeconds,
+			Peak30MinuteBuckets:       peakBuckets,
+			StapleSales:               stapleSales,
+			NoStapleOrderCount:        metrics.NoStapleOrderCount,
+			UnknownStapleOrderCount:   metrics.UnknownStapleOrderCount,
+			StandardSize: dto.StandardSizeMetrics{
+				StandardCount:        standard.StandardCount,
+				CustomSizeOrderCount: standard.CustomCount,
+				Small:                toRatioMetric(standard.Small),
+				Medium:               toRatioMetric(standard.Medium),
+				Large:                toRatioMetric(standard.Large),
+			},
+			TotalFriedEggCount: metrics.TotalFriedEggCount,
+			Takeout:            toRatioMetric(metrics.Takeout),
+			Customizations: dto.CustomizationMetrics{
+				LeanMeatOnly: toRatioMetric(metrics.Customizations.LeanMeatOnly),
+				NoIntestine:  toRatioMetric(metrics.Customizations.NoIntestine),
+				Union:        toRatioMetric(metrics.Customizations.Union),
+			},
+		},
+	}
+}
+
+func toRatioMetric(metric domain.RatioMetric) dto.RatioMetric {
+	return dto.RatioMetric{
+		Count:       metric.Count,
+		Denominator: metric.Denominator,
+		Ratio:       metric.Ratio,
+	}
 }
