@@ -64,11 +64,12 @@ func TestAggregateReportUsesCompletedAtWindowAndCalculatesMetrics(t *testing.T) 
 	require.Equal(t, 2901, metrics.RevenueCents)
 	require.Equal(t, 967, metrics.AverageOrderValueCents)
 	require.Equal(t, 32400, metrics.AveragePreparationSeconds)
-	// Peak periods use order placement time, so the two orders placed at
-	// 00:10 lead even though their completion times are around 09:00.
+	// Peak periods use order placement time, so the two valid orders placed at
+	// 00:10 lead even though their completion times are around 09:00. The
+	// third completed order has created_at after completed_at and is excluded
+	// from the peak (and preparation-duration) metrics.
 	require.Equal(t, []Peak30MinuteBucket{
 		{StartMinute: 0, EndMinute: 30, OrderCount: 2},
-		{StartMinute: 9 * 60, EndMinute: 9*60 + 30, OrderCount: 1},
 	}, metrics.Peak30MinuteBuckets)
 	require.Equal(t, 1, metrics.Takeout.Count)
 	require.Equal(t, 3, metrics.Takeout.Denominator)
@@ -288,7 +289,7 @@ func TestAggregateReportPeakUsesWallClockMinutesAcrossDST(t *testing.T) {
 	}
 }
 
-func TestAggregateReportPeakUsesCreatedAtAcrossCompletedDateBoundary(t *testing.T) {
+func TestAggregateReportCrossDayCompletionCountsButExcludesPeak(t *testing.T) {
 	location := time.FixedZone("CST", 8*60*60)
 	window := NewDayReportWindow(time.Date(2026, 8, 18, 0, 0, 0, 0, location), location)
 	createdAt := window.StartAt.Add(-5 * time.Minute)
@@ -299,11 +300,9 @@ func TestAggregateReportPeakUsesCreatedAtAcrossCompletedDateBoundary(t *testing.
 		CompletedAt: &completedAt,
 	}}, location)
 
-	require.Equal(t, []Peak30MinuteBucket{{
-		StartMinute: 23*60 + 30,
-		EndMinute:   24 * 60,
-		OrderCount:  1,
-	}}, report.Metrics.Peak30MinuteBuckets)
+	require.Equal(t, 1, report.Metrics.CompletedOrderCount)
+	require.Equal(t, 600, report.Metrics.AveragePreparationSeconds)
+	require.Empty(t, report.Metrics.Peak30MinuteBuckets)
 }
 
 func TestNewDailyReportWindowPreservesBusinessDateRange(t *testing.T) {

@@ -64,13 +64,8 @@ func TestStatsService_DailyAndReportShareCompletedRangeAndWorkspace(t *testing.T
 	require.Equal(t, daily[0].OrderCount, report.Metrics.CompletedOrderCount)
 	require.Equal(t, daily[0].TotalPriceCents, report.Metrics.RevenueCents)
 	require.Equal(t, 1100, report.Metrics.AverageOrderValueCents)
-	require.Equal(t, []domain.Peak30MinuteBucket{
-		{
-			StartMinute: 23*60 + 30,
-			EndMinute:   24 * 60,
-			OrderCount:  1,
-		},
-	}, report.Metrics.Peak30MinuteBuckets)
+	require.Equal(t, 600, report.Metrics.AveragePreparationSeconds)
+	require.Empty(t, report.Metrics.Peak30MinuteBuckets)
 
 	otherReport, err := svc.Report(ctx, otherWorkspaceID, domain.ReportQuery{
 		Period: domain.ReportPeriodDay,
