@@ -33,9 +33,11 @@ func NewRouter(
 		middleware.Logger(appLogger),
 		gin.Recovery(),
 	)
-	router.GET("/healthz", func(c *gin.Context) {
+	healthz := func(c *gin.Context) {
 		httpresp.JSON(c, http.StatusOK, gin.H{"status": "ok"})
-	})
+	}
+	router.GET("/healthz", healthz)
+	router.HEAD("/healthz", healthz)
 
 	v1.RegisterRoutes(
 		router.Group("/api"),
