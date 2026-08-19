@@ -33,6 +33,15 @@ repository layout, architecture, domain model, and API surface.
 See `docs/agents/commands.md` when additional command details are needed,
 including config setup, CLI flags, Android builds, build-info ldflags, and CI.
 
+## Specs
+
+Feature behavior specs are delegated to the `docs/specs/` directory; read every
+spec applicable to the task before starting task work. Specs are normative —
+when code conflicts with a spec, fix the code or update the spec deliberately.
+
+* `docs/specs/etag.md` — ETag generation and `If-None-Match` revalidation
+* `docs/specs/api-versioning.md` — response structure changes require new route versions
+
 ## Conventions
 
 Instructions are delegated to `docs/agents/conventions.md`.
