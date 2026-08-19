@@ -42,18 +42,20 @@ func appendVary(header http.Header, value string) {
 // If-None-Match. It scans entity-tags instead of splitting on commas because
 // commas are valid inside an opaque tag.
 func matchesIfNoneMatch(value, current string) bool {
+	value = textproto.TrimString(value)
+	if value == "*" {
+		return true
+	}
+
+	matched := false
 	for {
 		value = textproto.TrimString(value)
 		if value == "" {
-			return false
+			return matched
 		}
 		if value[0] == ',' {
 			value = value[1:]
 			continue
-		}
-		if value[0] == '*' {
-			remainder := textproto.TrimString(value[1:])
-			return remainder == "" || strings.HasPrefix(remainder, ",")
 		}
 
 		etag, remain := scanETag(value)
@@ -62,7 +64,7 @@ func matchesIfNoneMatch(value, current string) bool {
 			return false
 		}
 		if weakETagMatch(etag, current) {
-			return true
+			matched = true
 		}
 		value = remain
 	}

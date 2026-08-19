@@ -58,6 +58,27 @@ func TestPrivateJSONWithETagGETIfNoneMatchIgnoresMismatchedAndMalformedTags(t *t
 	}
 }
 
+func TestMatchesIfNoneMatchRequiresWildcardToStandAlone(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		value   string
+		current string
+		want    bool
+	}{
+		{name: "bare wildcard", value: `*`, current: `"current"`, want: true},
+		{name: "wildcard with optional whitespace", value: " \t* \t", current: `"current"`, want: true},
+		{name: "wildcard followed by tag", value: `*, "foo"`, current: `"foo"`, want: false},
+		{name: "tag followed by wildcard", value: `"foo", *`, current: `"foo"`, want: false},
+		{name: "wildcard followed by comma", value: `*,`, current: `"current"`, want: false},
+		{name: "wildcard after one leading comma", value: `, *`, current: `"current"`, want: false},
+		{name: "wildcard after multiple leading commas", value: `,, *`, current: `"current"`, want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, matchesIfNoneMatch(test.value, test.current))
+		})
+	}
+}
+
 func TestPrivateJSONWithETagAppliesToHEADWithoutWritingBody(t *testing.T) {
 	response := serveJSON(t, http.MethodHead, "", http.StatusOK, gin.H{"message": "hello"})
 
