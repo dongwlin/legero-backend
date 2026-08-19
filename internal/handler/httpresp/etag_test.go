@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJSONGETAddsStableStrongETagFromRenderedBytes(t *testing.T) {
+func TestPrivateJSONWithETagGETAddsStableStrongETagFromRenderedBytes(t *testing.T) {
 	first := serveJSON(t, http.MethodGet, "", http.StatusOK, gin.H{"message": "hello"})
 	second := serveJSON(t, http.MethodGet, "", http.StatusOK, gin.H{"message": "hello"})
 	changed := serveJSON(t, http.MethodGet, "", http.StatusOK, gin.H{"message": "goodbye"})
@@ -26,7 +26,7 @@ func TestJSONGETAddsStableStrongETagFromRenderedBytes(t *testing.T) {
 	require.Equal(t, "Authorization", first.Header().Get("Vary"))
 }
 
-func TestJSONGETIfNoneMatchUsesWeakComparisonAcrossListsAndOpaqueCommas(t *testing.T) {
+func TestPrivateJSONWithETagGETIfNoneMatchUsesWeakComparisonAcrossListsAndOpaqueCommas(t *testing.T) {
 	initial := serveJSON(t, http.MethodGet, "", http.StatusOK, gin.H{"message": "hello"})
 	etag := initial.Header().Get("ETag")
 
@@ -49,7 +49,7 @@ func TestJSONGETIfNoneMatchUsesWeakComparisonAcrossListsAndOpaqueCommas(t *testi
 	}
 }
 
-func TestJSONGETIfNoneMatchIgnoresMismatchedAndMalformedTags(t *testing.T) {
+func TestPrivateJSONWithETagGETIfNoneMatchIgnoresMismatchedAndMalformedTags(t *testing.T) {
 	for _, header := range []string{`"other"`, `W/not-an-etag`, `"unterminated`} {
 		response := serveJSON(t, http.MethodGet, header, http.StatusOK, gin.H{"message": "hello"})
 		require.Equal(t, http.StatusOK, response.Code, header)
@@ -58,7 +58,7 @@ func TestJSONGETIfNoneMatchIgnoresMismatchedAndMalformedTags(t *testing.T) {
 	}
 }
 
-func TestJSONETagAppliesToHEADWithoutWritingBody(t *testing.T) {
+func TestPrivateJSONWithETagAppliesToHEADWithoutWritingBody(t *testing.T) {
 	response := serveJSON(t, http.MethodHead, "", http.StatusOK, gin.H{"message": "hello"})
 
 	require.Equal(t, http.StatusOK, response.Code)
@@ -67,7 +67,7 @@ func TestJSONETagAppliesToHEADWithoutWritingBody(t *testing.T) {
 	require.Equal(t, "19", response.Header().Get("Content-Length"))
 }
 
-func TestJSONETagDoesNotApplyToPostOrErrors(t *testing.T) {
+func TestPrivateJSONWithETagDoesNotApplyToPostOrErrors(t *testing.T) {
 	post := serveJSON(t, http.MethodPost, "", http.StatusOK, gin.H{"message": "hello"})
 	require.Equal(t, http.StatusOK, post.Code)
 	require.Empty(t, post.Header().Get("ETag"))
@@ -79,7 +79,7 @@ func TestJSONETagDoesNotApplyToPostOrErrors(t *testing.T) {
 	require.Empty(t, errResponse.Header().Get("Cache-Control"))
 }
 
-func TestJSONETagAppendsVaryWithoutOverwritingExistingValues(t *testing.T) {
+func TestPrivateJSONWithETagAppendsVaryWithoutOverwritingExistingValues(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -87,7 +87,7 @@ func TestJSONETagAppendsVaryWithoutOverwritingExistingValues(t *testing.T) {
 		c.Next()
 	})
 	router.GET("/resource", func(c *gin.Context) {
-		JSON(c, http.StatusOK, gin.H{"message": "hello"})
+		PrivateJSONWithETag(c, http.StatusOK, gin.H{"message": "hello"})
 	})
 
 	recorder := httptest.NewRecorder()
@@ -95,6 +95,65 @@ func TestJSONETagAppendsVaryWithoutOverwritingExistingValues(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "Origin, Authorization", recorder.Header().Get("Vary"))
+}
+
+func TestJSONAddsETagWithoutPrivateCachePolicy(t *testing.T) {
+	response := servePlainJSON(t, http.MethodGet, http.StatusOK, gin.H{"message": "hello"})
+
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, `{"message":"hello"}`, response.Body.String())
+	require.Regexp(t, `^"[0-9a-f]{64}"$`, response.Header().Get("ETag"))
+	require.Empty(t, response.Header().Get("Cache-Control"))
+	require.Empty(t, response.Header().Get("Vary"))
+}
+
+func TestJSONGETIfNoneMatchUsesETagWithoutPrivateCachePolicy(t *testing.T) {
+	initial := servePlainJSON(t, http.MethodGet, http.StatusOK, gin.H{"message": "hello"})
+	etag := initial.Header().Get("ETag")
+
+	response := servePlainJSONWithIfNoneMatch(t, http.MethodGet, etag, http.StatusOK, gin.H{"message": "hello"})
+
+	require.Equal(t, http.StatusNotModified, response.Code)
+	require.Empty(t, response.Body.Bytes())
+	require.Equal(t, etag, response.Header().Get("ETag"))
+	require.Empty(t, response.Header().Get("Cache-Control"))
+	require.Empty(t, response.Header().Get("Vary"))
+}
+
+func TestPrivateJSONAddsPolicyWithoutETag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/resource", func(c *gin.Context) {
+		PrivateJSON(c, http.StatusOK, gin.H{"message": "hello"})
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/resource", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Empty(t, recorder.Header().Get("ETag"))
+	require.Equal(t, "private, no-cache", recorder.Header().Get("Cache-Control"))
+	require.Equal(t, "Authorization", recorder.Header().Get("Vary"))
+}
+
+func TestPrivateJSONOnlyAppliesPolicyToSuccessfulGETAndHEAD(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		method string
+		status int
+	}{
+		{name: "post", method: http.MethodPost, status: http.StatusOK},
+		{name: "error", method: http.MethodGet, status: http.StatusBadRequest},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := servePrivateJSON(t, test.method, test.status, gin.H{"message": "hello"})
+
+			require.Equal(t, test.status, response.Code)
+			require.Empty(t, response.Header().Get("ETag"))
+			require.Empty(t, response.Header().Get("Cache-Control"))
+			require.Empty(t, response.Header().Get("Vary"))
+		})
+	}
 }
 
 func TestAppendVaryAvoidsCaseInsensitiveDuplicates(t *testing.T) {
@@ -111,7 +170,7 @@ func serveJSON(t *testing.T, method, ifNoneMatch string, status int, payload any
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Handle(method, "/resource", func(c *gin.Context) {
-		JSON(c, status, payload)
+		PrivateJSONWithETag(c, status, payload)
 	})
 
 	recorder := httptest.NewRecorder()
@@ -120,5 +179,46 @@ func serveJSON(t *testing.T, method, ifNoneMatch string, status int, payload any
 		request.Header.Set("If-None-Match", ifNoneMatch)
 	}
 	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func servePlainJSON(t *testing.T, method string, status int, payload any) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Handle(method, "/resource", func(c *gin.Context) {
+		JSON(c, status, payload)
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(method, "/resource", nil))
+	return recorder
+}
+
+func servePlainJSONWithIfNoneMatch(t *testing.T, method, ifNoneMatch string, status int, payload any) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Handle(method, "/resource", func(c *gin.Context) {
+		JSON(c, status, payload)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(method, "/resource", nil)
+	request.Header.Set("If-None-Match", ifNoneMatch)
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func servePrivateJSON(t *testing.T, method string, status int, payload any) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Handle(method, "/resource", func(c *gin.Context) {
+		PrivateJSON(c, status, payload)
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(method, "/resource", nil))
 	return recorder
 }

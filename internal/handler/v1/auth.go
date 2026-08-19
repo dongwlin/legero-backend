@@ -80,7 +80,7 @@ func (h *AuthHandler) Bootstrap(c *gin.Context) {
 		return
 	}
 
-	httpresp.JSON(c, http.StatusOK, dto.BootstrapResponse{
+	httpresp.PrivateJSON(c, http.StatusOK, dto.BootstrapResponse{
 		Bootstrap: toBootstrapDTO(*data, h.location),
 	})
 }

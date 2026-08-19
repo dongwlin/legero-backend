@@ -40,7 +40,6 @@ func RegisterRoutes(
 	protected.Use(middleware.Auth(authSvc))
 	{
 		protected.GET("/bootstrap", authHandler.Bootstrap)
-		protected.HEAD("/bootstrap", authHandler.Bootstrap)
 		protected.GET("/orders", orderHandler.List)
 		protected.HEAD("/orders", orderHandler.List)
 		protected.POST("/orders", orderHandler.Create)

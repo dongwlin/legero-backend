@@ -53,7 +53,7 @@ func (h *OrderHandler) List(c *gin.Context) {
 		return
 	}
 
-	httpresp.JSON(c, http.StatusOK, dto.ListOrdersResponse{
+	httpresp.PrivateJSONWithETag(c, http.StatusOK, dto.ListOrdersResponse{
 		Items:      toOrderDTOs(result.Items, h.location),
 		NextCursor: result.NextCursor,
 	})

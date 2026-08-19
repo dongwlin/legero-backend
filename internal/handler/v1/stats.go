@@ -59,7 +59,7 @@ func (h *StatsHandler) Daily(c *gin.Context) {
 		})
 	}
 
-	httpresp.JSON(c, http.StatusOK, dto.DailyResponse{
+	httpresp.PrivateJSONWithETag(c, http.StatusOK, dto.DailyResponse{
 		Items: responseItems,
 	})
 }
@@ -93,7 +93,7 @@ func (h *StatsHandler) Report(c *gin.Context) {
 		return
 	}
 
-	httpresp.JSON(c, http.StatusOK, toReportDTO(*report, h.location))
+	httpresp.PrivateJSONWithETag(c, http.StatusOK, toReportDTO(*report, h.location))
 }
 
 func toReportDTO(report domain.Report, location *time.Location) dto.ReportResponse {
