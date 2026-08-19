@@ -14,6 +14,7 @@ func CORS() gin.HandlerFunc {
 		AllowAllOrigins: true,
 		AllowMethods: []string{
 			http.MethodGet,
+			http.MethodHead,
 			http.MethodPost,
 			http.MethodPut,
 			http.MethodDelete,

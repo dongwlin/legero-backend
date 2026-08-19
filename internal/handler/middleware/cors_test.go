@@ -42,8 +42,8 @@ func TestCORSHandlesPreflightForAnyOrigin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/auth/login", nil)
 	req.Header.Set("Origin", "https://frontend.example.com:3000")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	req.Header.Set("Access-Control-Request-Headers", "If-None-Match")
+	req.Header.Set("Access-Control-Request-Method", http.MethodHead)
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, If-None-Match")
 
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
@@ -57,6 +57,12 @@ func TestCORSHandlesPreflightForAnyOrigin(t *testing.T) {
 	}
 	if got := strings.ToLower(recorder.Header().Get("Access-Control-Allow-Headers")); !strings.Contains(got, "if-none-match") {
 		t.Fatalf("expected preflight to allow If-None-Match, got %q", got)
+	}
+	if got := strings.ToLower(recorder.Header().Get("Access-Control-Allow-Headers")); !strings.Contains(got, "authorization") {
+		t.Fatalf("expected preflight to allow Authorization, got %q", got)
+	}
+	if got := strings.ToLower(recorder.Header().Get("Access-Control-Allow-Methods")); !strings.Contains(got, strings.ToLower(http.MethodHead)) {
+		t.Fatalf("expected preflight to allow HEAD, got %q", got)
 	}
 }
 
