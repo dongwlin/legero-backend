@@ -29,12 +29,6 @@
 - 不设置 `Cache-Control`。
 - 不设置 `Vary`。
 
-实现上不得经过 `internal/handler/httpresp` 的 ETag / `Private*` 缓存封装，必须直接以普通 JSON 响应返回，例如：
-
-```go
-c.JSON(http.StatusOK, gin.H{"status": "ok"})
-```
-
 ## 5. 与 ETag 规范的关系
 
 `docs/specs/etag.md` 定义的 ETag 生成与 `If-None-Match` 重验证规则不适用于 `GET /healthz`。业务接口的 `GET / HEAD` 缓存策略（`Cache-Control: private, no-cache`、`Vary: Authorization`、Weak/Strong ETag）均与该探活接口无关。
