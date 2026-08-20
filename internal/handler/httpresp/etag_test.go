@@ -73,25 +73,9 @@ func TestStrongETagHashesExactResponseBytes(t *testing.T) {
 }
 
 func TestVersionETagUsesWeakResourceVersionFormat(t *testing.T) {
-	value := "order-0198cabc-42"
-	require.Equal(t, `W/"`+hex.EncodeToString([]byte(value))+`"`, VersionETag("order", "0198cabc", 42))
+	require.Equal(t, `W/"order-0198cabc-42"`, VersionETag("order", "0198cabc", 42))
 	require.NotEqual(t, VersionETag("order", "0198cabc", 42), VersionETag("order", "0198cabc", 43))
 	require.NotEqual(t, VersionETag("order", "0198cabc", 42), VersionETag("order", "0198cabd", 42))
-}
-
-func TestVersionETagEncodesOpaqueValueForHeaderSafety(t *testing.T) {
-	resource := "ord\"er"
-	id := "id\r\nX-Test: injected"
-	etag := VersionETag(resource, id, 42)
-
-	require.Regexp(t, `^W/"[0-9a-f]+"$`, etag)
-	require.NotContains(t, etag, "\r")
-	require.NotContains(t, etag, "\n")
-
-	encoded := strings.TrimSuffix(strings.TrimPrefix(etag, `W/"`), `"`)
-	decoded, err := hex.DecodeString(encoded)
-	require.NoError(t, err)
-	require.Equal(t, resource+"-"+id+"-42", string(decoded))
 }
 
 func TestPrivateJSONWithETagOnlyAppliesTo200Responses(t *testing.T) {

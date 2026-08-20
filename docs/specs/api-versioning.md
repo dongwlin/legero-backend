@@ -53,8 +53,11 @@ ETag 只描述当前版本下 representation 是否变化，不承担版本演�
 单资源接口的 ETag 格式：
 
 ```http
-ETag: W/"{hex(resource + "-" + id + "-" + version)}"
+ETag: W/"{resource}-{id}-{version}"
 ```
+
+`resource` 使用服务端固定标识，`id` 使用合法 UUID 字符串，因而该 weak
+ETag 可以直接保持可读格式；不对受约束的字段额外做编码。
 
 当响应结构发生 breaking change 时：
 

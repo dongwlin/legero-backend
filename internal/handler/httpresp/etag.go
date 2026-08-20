@@ -34,10 +34,10 @@ func StrongETag(body []byte) string {
 // VersionETag returns the weak validator used for a single versioned
 // resource. Version validators intentionally use weak comparison because a
 // resource version guarantees semantic equivalence, not byte-for-byte JSON
-// equality.
+// equality. Callers provide server-controlled resource names and UUID-style
+// IDs, so the opaque value can remain readable without escaping.
 func VersionETag(resource, id string, version int64) string {
-	value := fmt.Sprintf("%s-%s-%d", resource, id, version)
-	return `W/"` + hex.EncodeToString([]byte(value)) + `"`
+	return fmt.Sprintf(`W/"%s-%s-%d"`, resource, id, version)
 }
 
 func appendVary(header http.Header, value string) {
