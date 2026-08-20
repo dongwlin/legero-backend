@@ -56,8 +56,8 @@ func renderVersionJSON(c *gin.Context, status int, payload func() any, resource,
 
 	setPrivateCachePolicy(c)
 	etag := VersionETag(resource, id, version)
-	c.Header("ETag", etag)
 	if matchesIfNoneMatch(strings.Join(c.Request.Header.Values("If-None-Match"), ","), etag) {
+		c.Header("ETag", etag)
 		writeNotModified(c)
 		return
 	}
@@ -65,6 +65,7 @@ func renderVersionJSON(c *gin.Context, status int, payload func() any, resource,
 		// The version validator and representation media type are known without
 		// constructing the DTO. Content-Length is intentionally omitted when
 		// determining it would require marshaling and discarding the body.
+		c.Header("ETag", etag)
 		c.Header("Content-Type", jsonContentType)
 		c.Status(status)
 		c.Writer.WriteHeaderNow()
@@ -74,13 +75,10 @@ func renderVersionJSON(c *gin.Context, status int, payload func() any, resource,
 	payloadValue := payload()
 	body, err := ginjson.API.Marshal(payloadValue)
 	if err != nil {
-		// The precomputed validator describes the intended JSON representation;
-		// do not leave it attached if marshaling fails and Gin falls back to its
-		// error-capable renderer.
-		c.Writer.Header().Del("ETag")
 		c.JSON(status, payloadValue)
 		return
 	}
+	c.Header("ETag", etag)
 	renderJSONBody(c, status, body)
 }
 

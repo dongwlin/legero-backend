@@ -3,6 +3,7 @@ package httpresp
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,6 +119,28 @@ func TestIfNoneMatchRequiresAValidCompleteTagList(t *testing.T) {
 	}
 }
 
+func TestMatchesIfNoneMatchAllocationsDoNotScaleWithTagCount(t *testing.T) {
+	const current = `"current"`
+	oneTag := `"current"`
+	manyTags := strings.Repeat(`"",`, 8_192) + current
+
+	require.True(t, matchesIfNoneMatch(oneTag, current))
+	require.True(t, matchesIfNoneMatch(manyTags, current))
+
+	oneTagAllocs := testing.AllocsPerRun(100, func() {
+		if !matchesIfNoneMatch(oneTag, current) {
+			panic("single tag should match")
+		}
+	})
+	manyTagAllocs := testing.AllocsPerRun(100, func() {
+		if !matchesIfNoneMatch(manyTags, current) {
+			panic("large tag list should match")
+		}
+	})
+
+	require.LessOrEqual(t, manyTagAllocs, oneTagAllocs+1)
+}
+
 func TestPrivateJSONWithETagCombinesRepeatedIfNoneMatchHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -222,6 +245,43 @@ func TestPrivateJSONWithVersionETagHeadOmitsBodyAndMarshalWhenUnconditional(t *t
 	require.Equal(t, 0, marshalCalls)
 }
 
+func TestPrivateJSONWithVersionETagPanicDoesNotLeakETag(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload func() any
+	}{
+		{
+			name: "payload factory",
+			payload: func() any {
+				panic("payload panic")
+			},
+		},
+		{
+			name: "JSON marshaler",
+			payload: func() any {
+				return panickingJSONMarshaler{}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(gin.RecoveryWithWriter(io.Discard))
+			router.GET("/resource", func(c *gin.Context) {
+				PrivateJSONWithVersionETag(c, http.StatusOK, test.payload, "order", "order-1", 7)
+			})
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/resource", nil))
+
+			require.Equal(t, http.StatusInternalServerError, recorder.Code)
+			require.Empty(t, recorder.Header().Get("ETag"))
+		})
+	}
+}
+
 func TestResponseHashETagTracksFinalBytesAndIgnoresQueryWhenBytesMatch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -277,6 +337,12 @@ type countingJSONMarshaler struct {
 func (m countingJSONMarshaler) MarshalJSON() ([]byte, error) {
 	*m.calls = *m.calls + 1
 	return []byte(`{"message":"hello"}`), nil
+}
+
+type panickingJSONMarshaler struct{}
+
+func (panickingJSONMarshaler) MarshalJSON() ([]byte, error) {
+	panic("marshal panic")
 }
 
 func TestMatchesIfNoneMatchRequiresWildcardToStandAlone(t *testing.T) {

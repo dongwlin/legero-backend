@@ -65,34 +65,11 @@ func matchesIfNoneMatch(value, current string) bool {
 		return true
 	}
 
-	etags, ok := parseEntityTagList(value)
-	if !ok {
-		return false
-	}
-	for _, etag := range etags {
-		if weakETagMatch(etag, current) {
-			return true
-		}
-	}
-	return false
-}
-
-// parseEntityTagList parses an If-None-Match field-value. The wildcard is
-// handled by matchesIfNoneMatch before this function and is valid only when
-// it is the complete field-value. HTTP #list syntax permits empty elements,
-// so leading, consecutive, and trailing commas are skipped. Any bytes
-// outside entity-tag syntax make the whole field-value invalid.
-func parseEntityTagList(value string) ([]string, bool) {
-	value = textproto.TrimString(value)
-	if value == "" {
-		return nil, false
-	}
-
-	etags := make([]string, 0, 1)
+	matched := false
 	for {
 		value = textproto.TrimString(value)
 		if value == "" {
-			return etags, true
+			return matched
 		}
 		if value[0] == ',' {
 			value = value[1:]
@@ -100,16 +77,18 @@ func parseEntityTagList(value string) ([]string, bool) {
 		}
 		etag, remain, ok := scanETag(value)
 		if !ok {
-			return nil, false
+			return false
 		}
-		etags = append(etags, etag)
+		if weakETagMatch(etag, current) {
+			matched = true
+		}
 
 		remain = textproto.TrimString(remain)
 		if remain == "" {
-			return etags, true
+			return matched
 		}
 		if remain[0] != ',' {
-			return nil, false
+			return false
 		}
 		value = remain[1:]
 	}
