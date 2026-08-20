@@ -1,6 +1,7 @@
 package httpresp
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ func TestPrivateJSONWithETagGETAddsStableStrongETagFromRenderedBytes(t *testing.
 	require.Equal(t, first.Body.String(), `{"message":"hello"}`)
 	require.Equal(t, first.Header().Get("ETag"), second.Header().Get("ETag"))
 	require.NotEqual(t, first.Header().Get("ETag"), changed.Header().Get("ETag"))
+	require.Equal(t, StrongETag(first.Body.Bytes()), first.Header().Get("ETag"))
 	require.Regexp(t, `^"[0-9a-f]{64}"$`, first.Header().Get("ETag"))
 	_, err := hex.DecodeString(strings.Trim(first.Header().Get("ETag"), `"`))
 	require.NoError(t, err)
@@ -45,6 +47,8 @@ func TestPrivateJSONWithETagGETIfNoneMatchUsesWeakComparisonAcrossListsAndOpaque
 			require.Equal(t, etag, response.Header().Get("ETag"))
 			require.Empty(t, response.Header().Get("Content-Length"))
 			require.Empty(t, response.Header().Get("Content-Type"))
+			require.Equal(t, "private, no-cache", response.Header().Get("Cache-Control"))
+			require.Equal(t, "Authorization", response.Header().Get("Vary"))
 		})
 	}
 }
@@ -56,6 +60,223 @@ func TestPrivateJSONWithETagGETIfNoneMatchIgnoresMismatchedAndMalformedTags(t *t
 		require.Equal(t, `{"message":"hello"}`, response.Body.String(), header)
 		require.NotEmpty(t, response.Header().Get("ETag"), header)
 	}
+}
+
+func TestStrongETagHashesExactResponseBytes(t *testing.T) {
+	body := []byte(`{"message":"hello"}`)
+	digest := sha256.Sum256(body)
+	want := `"` + hex.EncodeToString(digest[:]) + `"`
+
+	require.Equal(t, want, StrongETag(body))
+	require.Equal(t, want, strongETag(body))
+}
+
+func TestVersionETagUsesWeakResourceVersionFormat(t *testing.T) {
+	require.Equal(t, `W/"order-0198cabc-42"`, VersionETag("order", "0198cabc", 42))
+	require.NotEqual(t, VersionETag("order", "0198cabc", 42), VersionETag("order", "0198cabc", 43))
+	require.NotEqual(t, VersionETag("order", "0198cabc", 42), VersionETag("order", "0198cabd", 42))
+}
+
+func TestPrivateJSONWithETagOnlyAppliesTo200Responses(t *testing.T) {
+	for _, status := range []int{
+		http.StatusCreated,
+		http.StatusAccepted,
+		http.StatusNoContent,
+		http.StatusPartialContent,
+		http.StatusMultipleChoices,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			response := serveJSON(t, http.MethodGet, "", status, gin.H{"message": "hello"})
+
+			require.Equal(t, status, response.Code)
+			require.Empty(t, response.Header().Get("ETag"))
+			require.Empty(t, response.Header().Get("Cache-Control"))
+			require.Empty(t, response.Header().Get("Vary"))
+		})
+	}
+}
+
+func TestIfNoneMatchRequiresAValidCompleteTagList(t *testing.T) {
+	current := `W/"current"`
+	for _, test := range []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "matching tag then malformed tag", value: `"current", malformed`, want: false},
+		{name: "leading empty element", value: `, "current"`, want: true},
+		{name: "consecutive empty elements", value: `"other",, "current"`, want: true},
+		{name: "trailing empty element", value: `"current",`, want: true},
+		{name: "wildcard mixed with tags", value: `*, "current"`, want: false},
+		{name: "wildcard with trailing comma", value: `*,`, want: false},
+		{name: "matching weak tag", value: `"current"`, want: true},
+		{name: "opaque comma", value: `"opaque,tag", "current"`, want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, matchesIfNoneMatch(test.value, current))
+		})
+	}
+}
+
+func TestPrivateJSONWithETagCombinesRepeatedIfNoneMatchHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/resource", func(c *gin.Context) {
+		PrivateJSONWithETag(c, http.StatusOK, gin.H{"message": "hello"})
+	})
+
+	initial := httptest.NewRecorder()
+	router.ServeHTTP(initial, httptest.NewRequest(http.MethodGet, "/resource", nil))
+	etag := initial.Header().Get("ETag")
+
+	request := httptest.NewRequest(http.MethodGet, "/resource", nil)
+	request.Header.Add("If-None-Match", `"other"`)
+	request.Header.Add("If-None-Match", `W/`+etag)
+	revalidated := httptest.NewRecorder()
+	router.ServeHTTP(revalidated, request)
+
+	require.Equal(t, http.StatusNotModified, revalidated.Code)
+	require.Empty(t, revalidated.Body.Bytes())
+	require.Equal(t, etag, revalidated.Header().Get("ETag"))
+}
+
+func TestPrivateJSONWithETagIgnoresRepeatedHeaderWhenLaterValueIsMalformed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/resource", func(c *gin.Context) {
+		PrivateJSONWithETag(c, http.StatusOK, gin.H{"message": "hello"})
+	})
+
+	initial := httptest.NewRecorder()
+	router.ServeHTTP(initial, httptest.NewRequest(http.MethodGet, "/resource", nil))
+	etag := initial.Header().Get("ETag")
+
+	request := httptest.NewRequest(http.MethodGet, "/resource", nil)
+	request.Header.Add("If-None-Match", etag)
+	request.Header.Add("If-None-Match", `"unterminated`)
+	revalidated := httptest.NewRecorder()
+	router.ServeHTTP(revalidated, request)
+
+	require.Equal(t, http.StatusOK, revalidated.Code)
+	require.Equal(t, `{"message":"hello"}`, revalidated.Body.String())
+	require.Equal(t, etag, revalidated.Header().Get("ETag"))
+}
+
+func TestPrivateJSONWithVersionETagSkipsMarshalOnHit(t *testing.T) {
+	var factoryCalls, marshalCalls int
+	payload := func() any {
+		factoryCalls++
+		return countingJSONMarshaler{calls: &marshalCalls}
+	}
+
+	first := serveVersionJSON(t, http.MethodGet, "", payload)
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, 1, factoryCalls)
+	require.Equal(t, 1, marshalCalls)
+	etag := first.Header().Get("ETag")
+	require.Equal(t, `W/"order-order-1-7"`, etag)
+
+	factoryCalls = 0
+	marshalCalls = 0
+	second := serveVersionJSON(t, http.MethodGet, etag, payload)
+	require.Equal(t, http.StatusNotModified, second.Code)
+	require.Empty(t, second.Body.Bytes())
+	require.Equal(t, 0, factoryCalls)
+	require.Equal(t, 0, marshalCalls)
+	require.Equal(t, etag, second.Header().Get("ETag"))
+	require.Equal(t, "private, no-cache", second.Header().Get("Cache-Control"))
+	require.Equal(t, "Authorization", second.Header().Get("Vary"))
+}
+
+func TestPrivateJSONWithVersionETagUsesWeakComparisonForHead(t *testing.T) {
+	get := serveVersionJSON(t, http.MethodGet, "", gin.H{"message": "hello"})
+	head := serveVersionJSON(t, http.MethodHead, `"order-order-1-7"`, gin.H{"message": "hello"})
+
+	require.Equal(t, http.StatusOK, get.Code)
+	require.Equal(t, http.StatusNotModified, head.Code)
+	require.Empty(t, head.Body.Bytes())
+	require.Equal(t, get.Header().Get("ETag"), head.Header().Get("ETag"))
+}
+
+func TestPrivateJSONWithVersionETagHeadOmitsBodyAndMarshalWhenUnconditional(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var factoryCalls, marshalCalls int
+	payload := func() any {
+		factoryCalls++
+		return countingJSONMarshaler{calls: &marshalCalls}
+	}
+	router := gin.New()
+	router.HEAD("/resource", func(c *gin.Context) {
+		PrivateJSONWithVersionETag(c, http.StatusOK, payload, "order", "order-1", 7)
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodHead, "/resource", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Empty(t, recorder.Body.Bytes())
+	require.Equal(t, `W/"order-order-1-7"`, recorder.Header().Get("ETag"))
+	require.Equal(t, jsonContentType, recorder.Header().Get("Content-Type"))
+	require.Empty(t, recorder.Header().Get("Content-Length"))
+	require.Equal(t, 0, factoryCalls)
+	require.Equal(t, 0, marshalCalls)
+}
+
+func TestResponseHashETagTracksFinalBytesAndIgnoresQueryWhenBytesMatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/varying", func(c *gin.Context) {
+		JSON(c, http.StatusOK, gin.H{"value": c.Query("value")})
+	})
+	router.GET("/stable", func(c *gin.Context) {
+		JSON(c, http.StatusOK, gin.H{"value": "same"})
+	})
+
+	firstVarying := httptest.NewRecorder()
+	router.ServeHTTP(firstVarying, httptest.NewRequest(http.MethodGet, "/varying?value=one", nil))
+	secondVarying := httptest.NewRecorder()
+	router.ServeHTTP(secondVarying, httptest.NewRequest(http.MethodGet, "/varying?value=two", nil))
+	require.NotEqual(t, firstVarying.Body.Bytes(), secondVarying.Body.Bytes())
+	require.NotEqual(t, firstVarying.Header().Get("ETag"), secondVarying.Header().Get("ETag"))
+
+	firstStable := httptest.NewRecorder()
+	router.ServeHTTP(firstStable, httptest.NewRequest(http.MethodGet, "/stable?value=one", nil))
+	secondStable := httptest.NewRecorder()
+	router.ServeHTTP(secondStable, httptest.NewRequest(http.MethodGet, "/stable?value=two", nil))
+	require.Equal(t, firstStable.Body.Bytes(), secondStable.Body.Bytes())
+	require.Equal(t, firstStable.Header().Get("ETag"), secondStable.Header().Get("ETag"))
+}
+
+func TestPrivateJSONWithVersionETagDoesNotTreatWeakTagAsIfMatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/resource", func(c *gin.Context) {
+		PrivateJSONWithVersionETag(c, http.StatusOK, func() any {
+			return gin.H{"message": "hello"}
+		}, "order", "order-1", 7)
+	})
+
+	initial := httptest.NewRecorder()
+	router.ServeHTTP(initial, httptest.NewRequest(http.MethodGet, "/resource", nil))
+	etag := initial.Header().Get("ETag")
+
+	request := httptest.NewRequest(http.MethodGet, "/resource", nil)
+	request.Header.Set("If-Match", etag)
+	revalidated := httptest.NewRecorder()
+	router.ServeHTTP(revalidated, request)
+
+	require.Equal(t, http.StatusOK, revalidated.Code)
+	require.NotEmpty(t, revalidated.Body.Bytes())
+	require.Equal(t, etag, revalidated.Header().Get("ETag"))
+}
+
+type countingJSONMarshaler struct {
+	calls *int
+}
+
+func (m countingJSONMarshaler) MarshalJSON() ([]byte, error) {
+	*m.calls = *m.calls + 1
+	return []byte(`{"message":"hello"}`), nil
 }
 
 func TestMatchesIfNoneMatchRequiresWildcardToStandAlone(t *testing.T) {
@@ -80,11 +301,12 @@ func TestMatchesIfNoneMatchRequiresWildcardToStandAlone(t *testing.T) {
 }
 
 func TestPrivateJSONWithETagAppliesToHEADWithoutWritingBody(t *testing.T) {
+	get := serveJSON(t, http.MethodGet, "", http.StatusOK, gin.H{"message": "hello"})
 	response := serveJSON(t, http.MethodHead, "", http.StatusOK, gin.H{"message": "hello"})
 
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Empty(t, response.Body.Bytes())
-	require.NotEmpty(t, response.Header().Get("ETag"))
+	require.Equal(t, get.Header().Get("ETag"), response.Header().Get("ETag"))
 	require.Equal(t, "19", response.Header().Get("Content-Length"))
 }
 
@@ -241,5 +463,26 @@ func servePrivateJSON(t *testing.T, method string, status int, payload any) *htt
 
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(method, "/resource", nil))
+	return recorder
+}
+
+func serveVersionJSON(t *testing.T, method, ifNoneMatch string, payload any) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Handle(method, "/resource", func(c *gin.Context) {
+		payloadFactory := func() any { return payload }
+		if lazyPayload, ok := payload.(func() any); ok {
+			payloadFactory = lazyPayload
+		}
+		PrivateJSONWithVersionETag(c, http.StatusOK, payloadFactory, "order", "order-1", 7)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(method, "/resource", nil)
+	if ifNoneMatch != "" {
+		request.Header.Set("If-None-Match", ifNoneMatch)
+	}
+	router.ServeHTTP(recorder, request)
 	return recorder
 }
