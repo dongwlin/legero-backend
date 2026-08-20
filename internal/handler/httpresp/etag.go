@@ -36,7 +36,8 @@ func StrongETag(body []byte) string {
 // resource version guarantees semantic equivalence, not byte-for-byte JSON
 // equality.
 func VersionETag(resource, id string, version int64) string {
-	return fmt.Sprintf(`W/"%s-%s-%d"`, resource, id, version)
+	value := fmt.Sprintf("%s-%s-%d", resource, id, version)
+	return `W/"` + hex.EncodeToString([]byte(value)) + `"`
 }
 
 func appendVary(header http.Header, value string) {

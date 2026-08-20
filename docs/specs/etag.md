@@ -70,13 +70,18 @@ Strong ETag
 推荐格式：
 
 ```http
-ETag: W/"{resource}-{id}-{version}"
+ETag: W/"{hex(resource + "-" + id + "-" + version)}"
 ```
+
+其中 `hex(...)` 是规范化字符串 UTF-8 字节的小写十六进制编码。编码后的值
+只包含 HTTP `etagc` 允许的 ASCII 字符，因此 `resource` 和 `id` 中即使出现
+引号、控制字符或非 ASCII 字符，也不会破坏响应头；同一个
+`resource`、`id` 和 `version` 始终生成相同的值。
 
 例如：
 
 ```http
-ETag: W/"order-0198cabc-1234-5678-9abc-def012345678-42"
+ETag: W/"6f726465722d30313938636162632d313233342d353637382d396162632d6465663031323334353637382d3432"
 ```
 
 各字段含义：
@@ -106,7 +111,7 @@ Order
 对应：
 
 ```http
-ETag: W/"order-abc-42"
+ETag: W/"6f726465722d6162632d3432"
 ```
 
 资源更新后：
@@ -118,7 +123,7 @@ Version = 43
 对应：
 
 ```http
-ETag: W/"order-abc-43"
+ETag: W/"6f726465722d6162632d3433"
 ```
 
 ---
@@ -158,7 +163,7 @@ W/"..."
 例如：
 
 ```http
-ETag: W/"order-abc-42"
+ETag: W/"6f726465722d6162632d3432"
 ```
 
 ---
@@ -422,20 +427,20 @@ validator 是否能保证 representation byte-level equality
 格式：
 
 ```http
-W/"{resource}-{id}-{version}"
+W/"{hex(resource + "-" + id + "-" + version)}"
 ```
 
 要求：
 
 - 必须带 `W/` 。
 - ETag 必须使用双引号包围。
-- 内容保持稳定。
-- 推荐只使用字母、数字与连字符。
+- opaque value 必须是规范化 `resource-id-version` 字符串 UTF-8 字节的小写十六进制编码。
+- 内容保持稳定，并且只能包含小写十六进制字符。
 
 例如：
 
 ```http
-W/"order-0198cabc1234-42"
+W/"6f726465722d3031393863616263313233342d3432"
 ```
 
 ---
@@ -468,7 +473,7 @@ W/"order-0198cabc1234-42"
 客户端可以发送：
 
 ```http
-If-None-Match: W/"order-abc-42"
+If-None-Match: W/"6f726465722d6162632d3432"
 ```
 
 或者：
@@ -610,7 +615,7 @@ header field，需要按 HTTP field value 规则组合后统一解析。
 Version ETag 是 Weak ETag：
 
 ```http
-W/"order-abc-42"
+W/"6f726465722d6162632d3432"
 ```
 
 因此不得用于要求 strong comparison 的：
@@ -650,14 +655,14 @@ If-Match
 
 ```http
 GET /orders/abc
-ETag: W/"order-abc-42"
+ETag: W/"6f726465722d6162632d3432"
 ```
 
 对应：
 
 ```http
 HEAD /orders/abc
-ETag: W/"order-abc-42"
+ETag: W/"6f726465722d6162632d3432"
 ```
 
 HEAD 不写 response body 。
@@ -868,7 +873,7 @@ Version 与 Hash 两种方案均至少覆盖：
 必须覆盖：
 
 ```http
-W/"{resource}-{id}-{version}"
+W/"{hex(resource + "-" + id + "-" + version)}"
 ```
 
 以及：
@@ -927,7 +932,7 @@ SHA256(final response body bytes)
 单资源
 → ID + Version
 → Weak ETag
-→ W/"order-{id}-{version}"
+→ W/"{hex(order + "-" + id + "-" + version)}"
 
 复杂 representation
 → Marshal final response
