@@ -31,7 +31,7 @@
 
 ## 5. 与 ETag 规范的关系
 
-`docs/specs/etag.md` 定义的 ETag 生成与 `If-None-Match` 重验证规则不适用于 `GET /healthz`。业务接口的 `GET / HEAD` 缓存策略（`Cache-Control: private, no-cache`、`Vary: Authorization`、Weak/Strong ETag）均与该探活接口无关。
+`docs/specs/api-etag.md` 定义的 ETag 生成与 `If-None-Match` 重验证规则不适用于 `GET /healthz`。业务接口的 `GET / HEAD` 缓存策略（`Cache-Control: private, no-cache`、`Vary: Authorization`、Weak/Strong ETag）均与该探活接口无关。
 
 ## 6. 测试要求
 
