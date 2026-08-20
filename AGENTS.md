@@ -41,6 +41,7 @@ when code conflicts with a spec, fix the code or update the spec deliberately.
 
 * `docs/specs/etag.md` — ETag generation and `If-None-Match` revalidation
 * `docs/specs/api-versioning.md` — response structure changes require new route versions
+* `docs/specs/api-healthz.md` — liveness endpoint excluded from ETag and cache handling
 
 ## Conventions
 

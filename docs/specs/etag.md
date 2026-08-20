@@ -38,6 +38,7 @@ ETag 仅应用于：
 - 其他非 `200` 状态
 - `4xx`
 - `5xx`
+- 基础设施探活接口 `GET /healthz`（见 `docs/specs/api-healthz.md`，该接口不参与缓存体系）
 
 ---
 

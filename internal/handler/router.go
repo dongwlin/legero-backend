@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/middleware"
 	"github.com/dongwlin/legero-backend/internal/handler/v1"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
@@ -34,10 +33,9 @@ func NewRouter(
 		gin.Recovery(),
 	)
 	healthz := func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	}
 	router.GET("/healthz", healthz)
-	router.HEAD("/healthz", healthz)
 
 	v1.RegisterRoutes(
 		router.Group("/api"),
