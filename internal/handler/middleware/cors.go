@@ -14,6 +14,7 @@ func CORS() gin.HandlerFunc {
 		AllowAllOrigins: true,
 		AllowMethods: []string{
 			http.MethodGet,
+			http.MethodHead,
 			http.MethodPost,
 			http.MethodPut,
 			http.MethodDelete,
@@ -24,10 +25,12 @@ func CORS() gin.HandlerFunc {
 			"Content-Type",
 			"Cache-Control",
 			"Accept",
+			"If-None-Match",
 		},
 		ExposeHeaders: []string{
 			"Content-Type",
 			"Cache-Control",
+			"ETag",
 		},
 		MaxAge:                    24 * time.Hour,
 		OptionsResponseStatusCode: http.StatusNoContent,

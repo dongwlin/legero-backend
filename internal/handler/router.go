@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/middleware"
 	"github.com/dongwlin/legero-backend/internal/handler/v1"
+	"github.com/dongwlin/legero-backend/internal/handler/v2"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -34,11 +34,23 @@ func NewRouter(
 		gin.Recovery(),
 	)
 	router.GET("/healthz", func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	v1.RegisterRoutes(
 		router.Group("/api"),
+		authSvc,
+		orderSvc,
+		statsSvc,
+		broker,
+		sessions,
+		location,
+		cfg,
+		now,
+	)
+
+	v2.RegisterRoutes(
+		router.Group("/api/v2"),
 		authSvc,
 		orderSvc,
 		statsSvc,

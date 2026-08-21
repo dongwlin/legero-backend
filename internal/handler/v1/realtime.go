@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/handler/v1/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
