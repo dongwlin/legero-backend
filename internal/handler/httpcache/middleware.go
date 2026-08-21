@@ -10,10 +10,18 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 )
 
-// Middleware returns a gin.HandlerFunc that wraps the ResponseWriter to capture
-// the response body, then after the handler completes reads the response
-// metadata stored by httpresp.JSON and, when a Validator is present, generates
-// an ETag, checks If-None-Match, and sets cache headers.
+// Middleware returns a gin.HandlerFunc that owns the response lifecycle. It
+// replaces the ResponseWriter with a buffering writer so the status and headers
+// are not committed to the wire while the handler runs; once the handler
+// completes, the middleware generates the ETag (SHA-256 of the captured body
+// for Strong validators, or the Validator's own string for Weak validators),
+// checks If-None-Match, and sets the cache headers. Only then is the response
+// committed.
+//
+// This deferred commit is what guarantees a HEAD response carries the same
+// headers as the corresponding GET: writing the body (GET) or calling
+// WriteHeaderNow (HEAD) inside the handler would freeze the header set before
+// the ETag and cache headers exist.
 //
 // For Strong validators the middleware computes SHA-256 from the captured body
 // bytes (GET) or by re-marshaling the response body (HEAD, since HEAD never
@@ -24,115 +32,123 @@ import (
 // separate WrapWriter middleware.
 func Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		capturing := &capturingWriter{
+		buf := &bufferingWriter{
 			ResponseWriter: c.Writer,
-			body:          &bytes.Buffer{},
+			body:           &bytes.Buffer{},
 		}
-		c.Writer = capturing
+		c.Writer = buf
+
+		defer func() {
+			// Restore the original writer so outer handlers that write after
+			// this middleware (e.g. the panic Recovery) go straight to the
+			// client instead of into the buffer. On the panic path Commit is
+			// never called and the partial buffer is discarded; body-describing
+			// headers the aborted handler left behind (e.g. Content-Length set
+			// by httpresp render) are removed so a Recovery 500 is not sent
+			// with a length that no body will satisfy.
+			c.Writer.Header().Del("Content-Length")
+			c.Writer.Header().Del("Content-Type")
+			c.Writer = buf.ResponseWriter
+		}()
 
 		c.Next()
 
-		raw, exists := c.Get(httpresp.ConfigKey())
-		if !exists {
-			return
-		}
-		cfg, ok := raw.(*httpresp.Config)
-		if !ok || cfg == nil || cfg.Metadata.Validator == nil {
-			return
-		}
-		validator := cfg.Metadata.Validator
-
-		status := c.Writer.Status()
+		status := buf.Status()
 		method := c.Request.Method
-		if !IsCacheableMethod(method) || !IsCacheableStatus(status) {
-			return
-		}
 
-		SetPrivateCachePolicy(c.Writer)
-
-		// Weak validators produce the ETag string directly.
-		// Strong validators signal via an empty ETag; the middleware computes
-		// the hash from the captured body bytes.
 		var etag string
-		if v, ok := validator.(weakValidator); ok {
-			etag = v.etag
-		} else {
-			// Strong: compute from captured body. For GET the body was
-			// intercepted by capturingWriter.Write; for HEAD no body was
-			// written, so we retrieve the marshaled bytes stored by
-			// httpresp.JSON.
-			body := capturing.body.Bytes()
-			if len(body) == 0 {
-				body = httpresp.BodyFromContext(c)
+		notModified := false
+
+		raw, exists := c.Get(httpresp.ConfigKey())
+		if exists {
+			if cfg, ok := raw.(*httpresp.Config); ok && cfg != nil && cfg.Metadata.Validator != nil {
+				validator := cfg.Metadata.Validator
+				if IsCacheableMethod(method) && IsCacheableStatus(status) {
+					SetPrivateCachePolicy(c.Writer)
+
+					// Weak validators produce the ETag string directly.
+					// Strong validators signal via an empty ETag; the middleware
+					// computes the hash from the captured body bytes.
+					if v, ok := validator.(weakValidator); ok {
+						etag = v.etag
+					} else {
+						// Strong: compute from captured body. For GET the body
+						// was buffered by bufferingWriter.Write; for HEAD no
+						// body was written, so we retrieve the marshaled bytes
+						// stored by httpresp.JSON.
+						body := buf.body.Bytes()
+						if len(body) == 0 {
+							body = httpresp.BodyFromContext(c)
+						}
+						etag = StrongETag(body)
+					}
+					if etag != "" {
+						SetETag(c.Writer, etag)
+
+						ifNoneMatch := c.GetHeader("If-None-Match")
+						if ifNoneMatch == "" {
+							ifNoneMatch = strings.Join(c.Request.Header.Values("If-None-Match"), ",")
+						}
+						if ifNoneMatch != "" && MatchIfNoneMatch(ifNoneMatch, etag) {
+							notModified = true
+						}
+					}
+				}
 			}
-			etag = StrongETag(body)
-		}
-		if etag == "" {
-			return
 		}
 
-		SetETag(c.Writer, etag)
-
-		ifNoneMatch := c.GetHeader("If-None-Match")
-		if ifNoneMatch == "" {
-			ifNoneMatch = strings.Join(c.Request.Header.Values("If-None-Match"), ",")
-		}
-		if ifNoneMatch != "" && MatchIfNoneMatch(ifNoneMatch, etag) {
-			WriteNotModified(c.Writer)
-			c.Abort()
-			return
-		}
-
-		// For HEAD responses the status and headers have already been sent
-		// by httpresp.JSON; only flush without writing a body.
-		if method == http.MethodHead {
-			c.Writer.Header().Del("Content-Length")
-			c.Writer.Header().Del("Content-Type")
-			if !c.Writer.Written() {
-				c.Writer.WriteHeaderNow()
-			}
-		}
+		buf.Commit(method, notModified)
 	}
 }
 
-// capturingWriter intercepts Write calls to capture the body for Strong ETag
-// hashing while still forwarding bytes to the underlying ResponseWriter.
-type capturingWriter struct {
+// bufferingWriter captures the response body and defers the header commit so
+// the middleware can set the ETag and cache headers after the handler has
+// completed. Without buffering, the header set would be frozen by the first
+// body write (GET) or an explicit WriteHeaderNow (HEAD) before the middleware
+// got a chance to add its headers.
+type bufferingWriter struct {
 	gin.ResponseWriter
 	body *bytes.Buffer
 }
 
-func (w *capturingWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
+func (w *bufferingWriter) Write(b []byte) (int, error) {
+	return w.body.Write(b)
 }
 
-func (w *capturingWriter) WriteHeader(code int) {
-	w.ResponseWriter.WriteHeader(code)
+func (w *bufferingWriter) WriteString(s string) (int, error) {
+	return w.body.WriteString(s)
 }
 
-func (w *capturingWriter) Status() int {
-	return w.ResponseWriter.Status()
+// WriteHeaderNow is a no-op: the middleware commits the header after it has
+// finished setting the ETag and cache headers.
+func (w *bufferingWriter) WriteHeaderNow() {}
+
+// Flush is a no-op while the response is buffered; streaming is not supported
+// for responses flowing through the ETag middleware.
+func (w *bufferingWriter) Flush() {}
+
+func (w *bufferingWriter) Written() bool {
+	return w.body.Len() > 0 || w.ResponseWriter.Written()
 }
 
-func (w *capturingWriter) Written() bool {
-	return w.ResponseWriter.Written()
+func (w *bufferingWriter) Size() int {
+	return w.body.Len()
 }
 
-func (w *capturingWriter) WriteHeaderNow() {
-	w.ResponseWriter.WriteHeaderNow()
+// Commit writes the status and buffered body to the underlying writer.
+// notModified discards the body and representation headers per 304 semantics;
+// for HEAD the headers are committed without writing a body.
+func (w *bufferingWriter) Commit(method string, notModified bool) {
+	if notModified {
+		w.ResponseWriter.Header().Del("Content-Length")
+		w.ResponseWriter.Header().Del("Content-Type")
+		w.ResponseWriter.WriteHeader(http.StatusNotModified)
+		w.ResponseWriter.WriteHeaderNow()
+		return
+	}
+	if method == http.MethodHead {
+		w.ResponseWriter.WriteHeaderNow()
+		return
+	}
+	w.ResponseWriter.Write(w.body.Bytes())
 }
-
-func (w *capturingWriter) Pusher() http.Pusher {
-	return w.ResponseWriter.Pusher()
-}
-
-func (w *capturingWriter) Flush() {
-	w.ResponseWriter.Flush()
-}
-
-func (w *capturingWriter) Size() int {
-	return w.ResponseWriter.Size()
-}
-
-
