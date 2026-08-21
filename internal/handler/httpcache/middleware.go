@@ -10,17 +10,26 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 )
 
-// Middleware returns a gin.HandlerFunc that reads the response metadata stored
-// by httpresp.JSON and, when a Validator is present, generates an ETag, checks
-// If-None-Match, and sets cache headers. For Strong validators the middleware
-// captures the response body to compute SHA-256; for Weak validators it uses
-// the ETag string produced by the Validator directly.
+// Middleware returns a gin.HandlerFunc that wraps the ResponseWriter to capture
+// the response body, then after the handler completes reads the response
+// metadata stored by httpresp.JSON and, when a Validator is present, generates
+// an ETag, checks If-None-Match, and sets cache headers.
 //
-// The middleware must run after the handler (i.e. after httpresp.JSON has
-// written the body and stored Config in gin.Context). Register it with a
-// route-group-level use() so it fires for every handler in that group.
+// For Strong validators the middleware computes SHA-256 from the captured body
+// bytes (GET) or by re-marshaling the response body (HEAD, since HEAD never
+// writes a body). For Weak validators it uses the ETag string produced by the
+// Validator directly.
+//
+// This middleware owns the writer lifecycle — callers must not register a
+// separate WrapWriter middleware.
 func Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		capturing := &capturingWriter{
+			ResponseWriter: c.Writer,
+			body:          &bytes.Buffer{},
+		}
+		c.Writer = capturing
+
 		c.Next()
 
 		raw, exists := c.Get(httpresp.ConfigKey())
@@ -48,10 +57,15 @@ func Middleware() gin.HandlerFunc {
 		if v, ok := validator.(weakValidator); ok {
 			etag = v.etag
 		} else {
-			// Strong: compute from captured body.
-			if cw, ok := c.Writer.(*capturingWriter); ok {
-				etag = StrongETag(cw.body.Bytes())
+			// Strong: compute from captured body. For GET the body was
+			// intercepted by capturingWriter.Write; for HEAD no body was
+			// written, so we retrieve the marshaled bytes stored by
+			// httpresp.JSON.
+			body := capturing.body.Bytes()
+			if len(body) == 0 {
+				body = httpresp.BodyFromContext(c)
 			}
+			etag = StrongETag(body)
 		}
 		if etag == "" {
 			return
@@ -64,29 +78,21 @@ func Middleware() gin.HandlerFunc {
 			ifNoneMatch = strings.Join(c.Request.Header.Values("If-None-Match"), ",")
 		}
 		if ifNoneMatch != "" && MatchIfNoneMatch(ifNoneMatch, etag) {
-			c.Writer.Header().Del("Content-Length")
-			c.Writer.Header().Del("Content-Type")
-			c.Writer.WriteHeader(http.StatusNotModified)
+			WriteNotModified(c.Writer)
 			c.Abort()
 			return
 		}
 
-		// For HEAD responses the body has already been captured but should
-		// not be written; httpresp.JSON already handled that.
+		// For HEAD responses the status and headers have already been sent
+		// by httpresp.JSON; only flush without writing a body.
 		if method == http.MethodHead {
 			c.Writer.Header().Del("Content-Length")
 			c.Writer.Header().Del("Content-Type")
-			c.Status(status)
-			c.Writer.WriteHeaderNow()
+			if !c.Writer.Written() {
+				c.Writer.WriteHeaderNow()
+			}
 		}
 	}
-}
-
-// WrapWriter wraps the gin.ResponseWriter so the middleware can capture the
-// response body for Strong ETag computation. Register this as a wrapper in
-// the route group that uses the cache middleware.
-func WrapWriter(c *gin.Context) {
-	c.Writer = &capturingWriter{ResponseWriter: c.Writer, body: &bytes.Buffer{}}
 }
 
 // capturingWriter intercepts Write calls to capture the body for Strong ETag

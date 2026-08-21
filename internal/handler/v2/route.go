@@ -13,9 +13,9 @@ import (
 )
 
 // RegisterRoutes registers all v2 routes on the given router. The v2 group
-// applies the httpcache middleware so that any handler calling httpresp.JSON
-// with an httpcache.Validator option automatically receives ETag generation,
-// If-None-Match revalidation, and private cache headers.
+// applies the httpcache middleware which owns the response writer lifecycle:
+// it wraps the writer to capture the response body, then after the handler
+// completes generates an ETag, checks If-None-Match, and sets cache headers.
 func RegisterRoutes(
 	r gin.IRouter,
 	authSvc service.Auth,
@@ -34,7 +34,6 @@ func RegisterRoutes(
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth(authSvc))
-	protected.Use(httpcache.WrapWriter)
 	protected.Use(httpcache.Middleware())
 
 	// v2 routes will be registered here as handlers are migrated.
