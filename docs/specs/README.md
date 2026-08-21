@@ -16,6 +16,9 @@ api/
 
 operations/
 └── health-check.md                ← 探活接口规范
+
+domain/
+└── order-date-semantics.md        ← 订单日期语义
 ```
 
 ## 依赖关系
@@ -50,3 +53,9 @@ conditional-request
 | 规范 | 职责 |
 | --- | --- |
 | [`operations/health-check.md`](operations/health-check.md) | `GET /healthz` 探活接口语义，排除于 ETag 与缓存体系之外 |
+
+## 领域规范
+
+| 规范 | 职责 |
+| --- | --- |
+| [`domain/order-date-semantics.md`](domain/order-date-semantics.md) | 订单日期语义与时间处理规则 |
