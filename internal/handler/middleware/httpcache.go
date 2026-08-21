@@ -1,4 +1,4 @@
-package httpcache
+package middleware
 
 import (
 	"bytes"
@@ -7,10 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/handler/httpcache"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 )
 
-// Middleware returns a gin.HandlerFunc that owns the response lifecycle. It
+// HTTPCache returns a gin.HandlerFunc that owns the response lifecycle. It
 // replaces the ResponseWriter with a buffering writer so the status and headers
 // are not committed to the wire while the handler runs; once the handler
 // completes, the middleware generates the ETag (SHA-256 of the captured body
@@ -30,7 +31,7 @@ import (
 //
 // This middleware owns the writer lifecycle — callers must not register a
 // separate WrapWriter middleware.
-func Middleware() gin.HandlerFunc {
+func HTTPCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		buf := &bufferingWriter{
 			ResponseWriter: c.Writer,
@@ -63,15 +64,15 @@ func Middleware() gin.HandlerFunc {
 		if exists {
 			if cfg, ok := raw.(*httpresp.Config); ok && cfg != nil && cfg.Metadata.Validator != nil {
 				validator := cfg.Metadata.Validator
-				if IsCacheableMethod(method) && IsCacheableStatus(status) {
-					SetPrivateCachePolicy(c.Writer)
+				if httpcache.IsCacheableMethod(method) && httpcache.IsCacheableStatus(status) {
+					httpcache.SetPrivateCachePolicy(c.Writer)
 
-					// Weak validators produce the ETag string directly.
-					// Strong validators signal via an empty ETag; the middleware
-					// computes the hash from the captured body bytes.
-					if v, ok := validator.(weakValidator); ok {
-						etag = v.etag
-					} else {
+					// Weak validators produce the ETag string directly. Strong
+					// validators signal via an empty ETag (see httpcache.Strong);
+					// the middleware computes the hash from the captured body
+					// bytes.
+					etag = validator.ETag()
+					if etag == "" {
 						// Strong: compute from captured body. For GET the body
 						// was buffered by bufferingWriter.Write; for HEAD no
 						// body was written, so we retrieve the marshaled bytes
@@ -80,16 +81,16 @@ func Middleware() gin.HandlerFunc {
 						if len(body) == 0 {
 							body = httpresp.BodyFromContext(c)
 						}
-						etag = StrongETag(body)
+						etag = httpcache.StrongETag(body)
 					}
 					if etag != "" {
-						SetETag(c.Writer, etag)
+						httpcache.SetETag(c.Writer, etag)
 
 						ifNoneMatch := c.GetHeader("If-None-Match")
 						if ifNoneMatch == "" {
 							ifNoneMatch = strings.Join(c.Request.Header.Values("If-None-Match"), ",")
 						}
-						if ifNoneMatch != "" && MatchIfNoneMatch(ifNoneMatch, etag) {
+						if ifNoneMatch != "" && httpcache.MatchIfNoneMatch(ifNoneMatch, etag) {
 							notModified = true
 						}
 					}

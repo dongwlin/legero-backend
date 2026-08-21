@@ -30,12 +30,12 @@ func Success(data any) Response {
 
 // JSON renders a v2 JSON response. It serializes body, sets Content-Type, and
 // writes the response. For HEAD requests the body is not written; the status
-// and headers are recorded and the header commit is left to the owning
-// httpcache middleware, which must set ETag and cache headers before the wire
+// and headers are recorded and the header commit is left to the owning HTTP
+// cache middleware, which must set ETag and cache headers before the wire
 // header is finalized (a premature commit would freeze the header set). Any
 // Option values (such as a cache validator declared by the handler) are stored
-// in the gin.Context for downstream infrastructure (e.g. httpcache middleware)
-// to consume — httpresp itself never acts on them.
+// in the gin.Context for downstream infrastructure (e.g. the HTTP cache
+// middleware) to consume — httpresp itself never acts on them.
 func JSON(c *gin.Context, status int, body any, opts ...Option) {
 	cfg := Config{}
 	for _, opt := range opts {

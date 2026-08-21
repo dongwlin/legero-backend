@@ -1,7 +1,7 @@
 package httpresp
 
 // ConfigKey returns the gin.Context key under which httpresp.JSON stores
-// the Config for downstream infrastructure (e.g. httpcache middleware).
+// the Config for downstream infrastructure (e.g. the HTTP cache middleware).
 func ConfigKey() string {
 	return configKey
 }
@@ -14,8 +14,8 @@ func ConfigKey() string {
 type Option func(*Config)
 
 // Config carries HTTP representation metadata attached to a single response.
-// Downstream infrastructure (e.g. httpcache middleware) reads Config from the
-// gin.Context after the handler has called JSON.
+// Downstream infrastructure (e.g. the HTTP cache middleware) reads Config from
+// the gin.Context after the handler has called JSON.
 type Config struct {
 	Metadata Metadata
 }

@@ -1,4 +1,4 @@
-package httpcache
+package middleware
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/dongwlin/legero-backend/internal/handler/httpcache"
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 )
 
@@ -24,7 +25,7 @@ func newTestServer(t *testing.T, handler gin.HandlerFunc) *httptest.Server {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(Middleware())
+	r.Use(HTTPCache())
 	r.GET("/thing", handler)
 	r.HEAD("/thing", handler)
 	srv := httptest.NewServer(r)
@@ -64,7 +65,7 @@ func mustHave(t *testing.T, resp *http.Response, header, want string) {
 // same ETag, per the HEAD semantics of conditional-request.md §7.
 func TestWeakETagGetAndHead(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, WithValidator(Weak("thing", "abc-123", 42)))
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
 	})
 
 	getResp, getBody := doAndRead(t, srv, http.MethodGet, nil)
@@ -100,13 +101,13 @@ func TestWeakETagGetAndHead(t *testing.T) {
 // and HEAD must yield the same ETag as GET.
 func TestStrongETagGetAndHead(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, WithValidator(Strong()))
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Strong()))
 	})
 
 	getResp, getBody := doAndRead(t, srv, http.MethodGet, nil)
 	headResp, headBody := doAndRead(t, srv, http.MethodHead, nil)
 
-	want := StrongETag(getBody)
+	want := httpcache.StrongETag(getBody)
 	mustHave(t, getResp, "ETag", want)
 	mustHave(t, headResp, "ETag", want)
 	if string(getBody) != `{"a":1}` {
@@ -121,7 +122,7 @@ func TestStrongETagGetAndHead(t *testing.T) {
 // representation headers (Content-Type, Content-Length), for both GET and HEAD.
 func TestIfNoneMatchMatch304(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, WithValidator(Weak("thing", "abc-123", 42)))
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
 	})
 	const etag = `W/"thing-abc-123-42"`
 
@@ -147,7 +148,7 @@ func TestIfNoneMatchMatch304(t *testing.T) {
 // If-None-Match miss: a normal 200 with the full body and ETag.
 func TestIfNoneMatchMiss200(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, WithValidator(Weak("thing", "abc-123", 42)))
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
 	})
 
 	resp, body := doAndRead(t, srv, http.MethodGet, map[string]string{"If-None-Match": `W/"thing-abc-123-99"`})
@@ -165,9 +166,9 @@ func TestPostNoETag(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(Middleware())
+	r.Use(HTTPCache())
 	r.POST("/thing", func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, WithValidator(Weak("thing", "abc-123", 42)))
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
 	})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
@@ -193,7 +194,7 @@ func TestPostNoETag(t *testing.T) {
 // Non-200 status: no ETag even with a validator declared.
 func TestNon200NoETag(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
-		httpresp.JSON(c, http.StatusCreated, map[string]any{"a": 1}, WithValidator(Weak("thing", "abc-123", 42)))
+		httpresp.JSON(c, http.StatusCreated, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
 	})
 
 	resp, body := doAndRead(t, srv, http.MethodGet, nil)
@@ -258,7 +259,7 @@ func TestPanicRecovery(t *testing.T) {
 func TestExplicitWriteHeaderGetsETag(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
 		cfg := &httpresp.Config{}
-		WithValidator(Weak("thing", "abc-123", 42))(cfg)
+		httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42))(cfg)
 		c.Set(httpresp.ConfigKey(), cfg)
 		c.Writer.WriteHeader(http.StatusOK)
 		_, _ = c.Writer.Write([]byte(`{"a":1}`))
@@ -288,7 +289,7 @@ func TestExplicitWriteHeaderGetsETag(t *testing.T) {
 func TestExplicitNon200WriteHeader(t *testing.T) {
 	srv := newTestServer(t, func(c *gin.Context) {
 		cfg := &httpresp.Config{}
-		WithValidator(Weak("thing", "abc-123", 42))(cfg)
+		httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42))(cfg)
 		c.Set(httpresp.ConfigKey(), cfg)
 		c.Writer.WriteHeader(http.StatusCreated)
 		_, _ = c.Writer.Write([]byte(`{"a":1}`))

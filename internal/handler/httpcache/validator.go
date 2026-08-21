@@ -28,8 +28,8 @@ func Strong() Validator {
 
 func (strongValidator) ETag() string {
 	// The real ETag is computed by the middleware from the final body bytes.
-	// This method exists only to satisfy the interface; callers never invoke
-	// it directly for Strong validators.
+	// Returning "" is how the middleware recognizes a Strong validator and
+	// knows to compute the hash from the response body.
 	return ""
 }
 

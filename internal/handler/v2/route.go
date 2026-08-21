@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/dongwlin/legero-backend/internal/handler/httpcache"
 	"github.com/dongwlin/legero-backend/internal/handler/middleware"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
@@ -13,7 +12,7 @@ import (
 )
 
 // RegisterRoutes registers all v2 routes on the given router. The v2 group
-// applies the httpcache middleware which owns the response writer lifecycle:
+// applies the HTTP cache middleware which owns the response writer lifecycle:
 // it wraps the writer to capture the response body, then after the handler
 // completes generates an ETag, checks If-None-Match, and sets cache headers.
 func RegisterRoutes(
@@ -34,7 +33,7 @@ func RegisterRoutes(
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth(authSvc))
-	protected.Use(httpcache.Middleware())
+	protected.Use(middleware.HTTPCache())
 
 	// v2 routes will be registered here as handlers are migrated.
 	// Example (not yet implemented):
