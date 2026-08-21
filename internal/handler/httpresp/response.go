@@ -2,8 +2,6 @@ package httpresp
 
 import (
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	ginjson "github.com/gin-gonic/gin/codec/json"
@@ -11,128 +9,66 @@ import (
 
 const jsonContentType = "application/json; charset=utf-8"
 
-// JSON renders a JSON response. Successful GET and HEAD representations get a
-// stable strong ETag and support If-None-Match revalidation, without applying
-// an endpoint-specific cache policy.
-func JSON(c *gin.Context, status int, payload any) {
-	renderJSON(c, status, payload, true, false)
+// Response is the v2 unified envelope. All v2 API responses wrap their
+// business payload inside this structure so clients can rely on a stable
+// contract: code for machine-readable status, message for human-readable
+// context, and data for the business payload.
+type Response struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
 }
 
-// PrivateJSON renders an authenticated representation with a private,
-// revalidation-required cache policy. It deliberately does not generate an
-// ETag; use PrivateJSONWithETag for representations whose bytes are stable
-// enough to revalidate. The policy is applied only to successful GET and HEAD
-// representations.
-func PrivateJSON(c *gin.Context, status int, payload any) {
-	renderJSON(c, status, payload, false, true)
+// Success wraps data in the v2 envelope with a zero code and "success" message.
+func Success(data any) Response {
+	return Response{Code: "0", Message: "success", Data: data}
 }
 
-// PrivateJSONWithETag renders an authenticated GET or HEAD representation
-// with a stable strong ETag and supports If-None-Match revalidation. The ETag
-// is calculated from the exact bytes written to the response, so it remains
-// correct for query-dependent and nested payloads.
-func PrivateJSONWithETag(c *gin.Context, status int, payload any) {
-	renderJSON(c, status, payload, true, true)
-}
-
-// PrivateJSONWithVersionETag renders a single versioned resource using a weak
-// version validator. The payload is lazy so a matching If-None-Match request
-// can return 304 without converting the resource to its response DTO or
-// serializing its body.
-//
-// No current route uses this helper yet; it is provided for single-resource
-// GET/HEAD handlers when they are introduced. Complex list and aggregate
-// responses must continue to use PrivateJSONWithETag.
-func PrivateJSONWithVersionETag(c *gin.Context, status int, payload func() any, resource, id string, version int64) {
-	renderVersionJSON(c, status, payload, resource, id, version)
-}
-
-func renderVersionJSON(c *gin.Context, status int, payload func() any, resource, id string, version int64) {
-	eligible := etagMethod(c.Request) && etagStatus(status)
-	if !eligible {
-		renderJSON(c, status, payload(), false, true)
-		return
+// JSON renders a v2 JSON response. It serializes body, sets Content-Type, and
+// writes the response. Any Option values (such as a cache validator declared by
+// the handler) are stored in the gin.Context for downstream infrastructure
+// (e.g. httpcache middleware) to consume — httpresp itself never acts on them.
+func JSON(c *gin.Context, status int, body any, opts ...Option) {
+	cfg := Config{}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
+	c.Set(configKey, &cfg)
 
-	setPrivateCachePolicy(c)
-	etag := VersionETag(resource, id, version)
-	if matchesIfNoneMatch(strings.Join(c.Request.Header.Values("If-None-Match"), ","), etag) {
-		c.Header("ETag", etag)
-		writeNotModified(c)
-		return
-	}
-	if c.Request.Method == http.MethodHead {
-		// The version validator and representation media type are known without
-		// constructing the DTO. Content-Length is intentionally omitted when
-		// determining it would require marshaling and discarding the body.
-		c.Header("ETag", etag)
-		c.Header("Content-Type", jsonContentType)
-		c.Status(status)
-		c.Writer.WriteHeaderNow()
-		return
-	}
-
-	payloadValue := payload()
-	body, err := ginjson.API.Marshal(payloadValue)
+	data, err := ginjson.API.Marshal(body)
 	if err != nil {
-		c.JSON(status, payloadValue)
+		c.JSON(status, body)
 		return
 	}
-	c.Header("ETag", etag)
-	renderJSONBody(c, status, body)
+	renderBody(c, status, data)
 }
 
-func renderJSON(c *gin.Context, status int, payload any, withETag, private bool) {
-	body, err := ginjson.API.Marshal(payload)
-	if err != nil {
-		c.JSON(status, payload)
-		return
-	}
-
-	eligible := etagMethod(c.Request) && etagStatus(status)
-	if eligible && private {
-		setPrivateCachePolicy(c)
-	}
-
-	if eligible && withETag {
-		etag := strongETag(body)
-		c.Header("ETag", etag)
-
-		if matchesIfNoneMatch(strings.Join(c.Request.Header.Values("If-None-Match"), ","), etag) {
-			writeNotModified(c)
-			return
-		}
-	}
-
-	renderJSONBody(c, status, body)
+// NoContent sends a 204 with no body.
+func NoContent(c *gin.Context) {
+	c.Status(http.StatusNoContent)
 }
 
-func renderJSONBody(c *gin.Context, status int, body []byte) {
+func renderBody(c *gin.Context, status int, body []byte) {
 	if c.Request != nil && c.Request.Method == http.MethodHead {
 		c.Header("Content-Type", jsonContentType)
-		c.Header("Content-Length", strconv.Itoa(len(body)))
+		c.Header("Content-Length", itoa(len(body)))
 		c.Status(status)
 		c.Writer.WriteHeaderNow()
 		return
 	}
-
 	c.Data(status, jsonContentType, body)
 }
 
-func setPrivateCachePolicy(c *gin.Context) {
-	c.Header("Cache-Control", "private, no-cache")
-	appendVary(c.Writer.Header(), "Authorization")
-}
-
-func writeNotModified(c *gin.Context) {
-	// A 304 never carries a response body. Keep the validator and cache policy
-	// headers already set above, but remove representation metadata that would
-	// describe a body which is not present.
-	c.Writer.Header().Del("Content-Length")
-	c.Writer.Header().Del("Content-Type")
-	c.AbortWithStatus(http.StatusNotModified)
-}
-
-func NoContent(c *gin.Context) {
-	c.Status(204)
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	buf := [20]byte{}
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
 }
