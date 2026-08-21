@@ -1,6 +1,7 @@
 package httpcache
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -247,5 +248,80 @@ func TestPanicRecovery(t *testing.T) {
 	}
 	if len(body) != 0 {
 		t.Errorf("body = %q, want empty (partial response must be discarded)", body)
+	}
+}
+
+// A handler that writes its own status and body via c.Writer (bypassing
+// httpresp.JSON) must still receive the ETag and cache headers: bufferingWriter
+// owns the status, so an explicit WriteHeader cannot commit the header set
+// early. Covers the explicit WriteHeader path on both GET and HEAD.
+func TestExplicitWriteHeaderGetsETag(t *testing.T) {
+	srv := newTestServer(t, func(c *gin.Context) {
+		cfg := &httpresp.Config{}
+		WithValidator(Weak("thing", "abc-123", 42))(cfg)
+		c.Set(httpresp.ConfigKey(), cfg)
+		c.Writer.WriteHeader(http.StatusOK)
+		_, _ = c.Writer.Write([]byte(`{"a":1}`))
+	})
+
+	const etag = `W/"thing-abc-123-42"`
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		resp, body := doAndRead(t, srv, method, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", method, resp.StatusCode)
+		}
+		if method == http.MethodGet && string(body) != `{"a":1}` {
+			t.Errorf("GET body = %q, want %q", body, `{"a":1}`)
+		}
+		if method == http.MethodHead && len(body) != 0 {
+			t.Errorf("HEAD body = %q, want empty", body)
+		}
+		mustHave(t, resp, "ETag", etag)
+		mustHave(t, resp, "Cache-Control", "private, no-cache")
+		mustHave(t, resp, "Vary", "Authorization")
+	}
+}
+
+// A handler that explicitly writes a non-200 status via c.Writer must see that
+// status on the wire and must not receive an ETag: only 200 OK representations
+// are cacheable.
+func TestExplicitNon200WriteHeader(t *testing.T) {
+	srv := newTestServer(t, func(c *gin.Context) {
+		cfg := &httpresp.Config{}
+		WithValidator(Weak("thing", "abc-123", 42))(cfg)
+		c.Set(httpresp.ConfigKey(), cfg)
+		c.Writer.WriteHeader(http.StatusCreated)
+		_, _ = c.Writer.Write([]byte(`{"a":1}`))
+	})
+
+	resp, body := doAndRead(t, srv, http.MethodGet, nil)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	if string(body) != `{"a":1}` {
+		t.Errorf("body = %q, want %q", body, `{"a":1}`)
+	}
+	if resp.Header.Get("ETag") != "" {
+		t.Errorf("ETag = %q, want empty for non-200", resp.Header.Get("ETag"))
+	}
+	if resp.Header.Get("Cache-Control") != "" {
+		t.Errorf("Cache-Control = %q, want empty for non-200", resp.Header.Get("Cache-Control"))
+	}
+}
+
+// bufferingWriter owns the response status: it defaults to 200 OK and returns
+// the last code recorded by WriteHeader.
+func TestBufferingWriterStatus(t *testing.T) {
+	w := &bufferingWriter{body: &bytes.Buffer{}}
+	if got := w.Status(); got != http.StatusOK {
+		t.Errorf("default Status() = %d, want %d", got, http.StatusOK)
+	}
+	w.WriteHeader(http.StatusCreated)
+	if got := w.Status(); got != http.StatusCreated {
+		t.Errorf("Status() after WriteHeader(201) = %d, want %d", got, http.StatusCreated)
+	}
+	w.WriteHeader(http.StatusNotFound)
+	if got := w.Status(); got != http.StatusNotFound {
+		t.Errorf("Status() after WriteHeader(404) = %d, want %d", got, http.StatusNotFound)
 	}
 }

@@ -108,7 +108,8 @@ func Middleware() gin.HandlerFunc {
 // got a chance to add its headers.
 type bufferingWriter struct {
 	gin.ResponseWriter
-	body *bytes.Buffer
+	body   *bytes.Buffer
+	status int
 }
 
 func (w *bufferingWriter) Write(b []byte) (int, error) {
@@ -117,6 +118,26 @@ func (w *bufferingWriter) Write(b []byte) (int, error) {
 
 func (w *bufferingWriter) WriteString(s string) (int, error) {
 	return w.body.WriteString(s)
+}
+
+// WriteHeader records the status code for Commit instead of forwarding it to
+// the embedded writer. The header set is not committed here — that happens only
+// in Commit, after the middleware has set the ETag and cache headers — so an
+// explicit WriteHeader (c.Status, c.Writer.WriteHeader) inside a handler cannot
+// freeze the headers before they exist.
+func (w *bufferingWriter) WriteHeader(code int) {
+	if code > 0 {
+		w.status = code
+	}
+}
+
+// Status returns the status recorded by WriteHeader, defaulting to 200 OK when
+// the handler never set one explicitly.
+func (w *bufferingWriter) Status() int {
+	if w.status == 0 {
+		return http.StatusOK
+	}
+	return w.status
 }
 
 // WriteHeaderNow is a no-op: the middleware commits the header after it has
@@ -147,8 +168,10 @@ func (w *bufferingWriter) Commit(method string, notModified bool) {
 		return
 	}
 	if method == http.MethodHead {
+		w.ResponseWriter.WriteHeader(w.Status())
 		w.ResponseWriter.WriteHeaderNow()
 		return
 	}
+	w.ResponseWriter.WriteHeader(w.Status())
 	w.ResponseWriter.Write(w.body.Bytes())
 }
