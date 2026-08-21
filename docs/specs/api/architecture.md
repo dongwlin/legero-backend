@@ -7,7 +7,7 @@
 本规范为**架构约束规范**：定义“谁可以做什么、谁不得做什么”，不描述具体实现代码。任何现有代码与本规范不一致时，以本规范为准，代码应在后续演进中向规范对齐，而不是反向修改规范去适配代码。
 
 > [!important]
-> 本规范与 `api-etag.md` 互补：`api-etag.md` 定义 ETag 的语义与条件请求行为，本规范定义 ETag 与缓存能力在分层架构中的归属与协作方式。
+> 本规范与 `conditional-request.md` 互补：`conditional-request.md` 定义 ETag 的语义与条件请求行为，本规范定义 ETag 与缓存能力在分层架构中的归属与协作方式。
 
 ---
 
@@ -20,7 +20,7 @@
 | Composable Infrastructure | 可正交组合的基础设施能力：以中间件、装饰器、拦截器等形式叠加到请求处理链路上，不侵入业务渲染逻辑。 |
 | `httpresp` | 将业务结果转换为 HTTP Response 的渲染层。提供 API JSON Contract 与通用 JSON 渲染能力。 |
 | `httpcache` | HTTP 缓存与表示验证器基础设施。提供 `Validator` 抽象、`Strong` / `Weak` 构造及 `WithValidator` 等 Option。 |
-| Response Envelope | 包裹业务负载的统一外层结构。自 `v2` 起为 `httpresp.Response { Code string; Message string; Data any }`（见 `api-versioning.md` §5.1）；`v1` 的历史结构由其自身包封闭管理，不提升为全局模型。 |
+| Response Envelope | 包裹业务负载的统一外层结构。自 `v2` 起为 `httpresp.Response { Code string; Message string; Data any }`（见 `versioning.md` §5.1）；`v1` 的历史结构由其自身包封闭管理，不提升为全局模型。 |
 | Response Meta / Metadata | 描述 HTTP representation 附加信息的只读数据，例如验证器来源。不承载行为。 |
 | Option / Config | `httpresp.JSON` 的扩展点：`type Option func(*Config)`，`Config{Metadata}`，`Metadata{Validator}`。仅描述 HTTP representation metadata。 |
 | Validator | `httpcache` 提供的验证器抽象：`type Validator interface { ETag() string }`。 |
@@ -114,7 +114,7 @@ httpresp.JSON(c, http.StatusOK, resp)
 
 ### 4.1.1 与 Response Envelope 的关系
 
-- 自 `v2` 起的统一信封 `Response{Code, Message, Data}` 即 `httpresp.Response`（见 `api-versioning.md` §5.1）。是否以及如何包裹由版本决定：
+- 自 `v2` 起的统一信封 `Response{Code, Message, Data}` 即 `httpresp.Response`（见 `versioning.md` §5.1）。是否以及如何包裹由版本决定：
   - `v2` 及后续版本：统一使用 `httpresp.Response` / `httpresp.Success` 包裹业务负载，`httpresp.JSON` 负责序列化，不持有缓存逻辑。
   - `v1`：响应结构与渲染逻辑由 `v1` 自身包封闭管理，不依赖全局 `httpresp` 的信封抽象；`v1` 保持冻结，不因 `v2` 的信封收敛而被动迁移。
 
@@ -291,7 +291,7 @@ func (h *OrderHandler) Get(c *gin.Context) {
   - Weak Validator 虽可基于 `version` 等 domain 事实推导，但其语义仍是“同一 version 下的 representation 语义等价”，而非“domain 对象相等”。Validator 的正确性由 representation 是否等价来判定。
 - **不得**将 domain 对象直接作为 validator 的比较对象（例如 `if oldOrder == newOrder`），也不得在 domain 层生成面向 HTTP 的 `ETag` 字符串。
 
-> 推论：`version` 是推导 Weak ETag 的**依据**，但 Weak ETag 本身仍是 representation 层的概念；更换 representation 结构（如 DTO 字段增删）即使 `version` 未变，也可能需要通过新路由版本来保证 validator 的正确性（见 `api-versioning.md`）。
+> 推论：`version` 是推导 Weak ETag 的**依据**，但 Weak ETag 本身仍是 representation 层的概念；更换 representation 结构（如 DTO 字段增删）即使 `version` 未变，也可能需要通过新路由版本来保证 validator 的正确性（见 `versioning.md`）。
 
 ---
 
@@ -330,21 +330,21 @@ domain    --X-->  ETag / HTTP
 
 ### 10.1 v1 自管理与冻结
 
-- `v1`（` /api/*`）的响应形态与渲染逻辑由其自身包封闭管理，视为已冻结的历史版本（见 `api-versioning.md` §5.2）。
-- `v1` 不再接受新的基础设施能力叠加：自本规范起，`v1` 不再支持 ETag / `If-None-Match` / `Cache-Control: private, no-cache` / `Vary: Authorization`（见 `api-etag.md` §2.1）。
+- `v1`（` /api/*`）的响应形态与渲染逻辑由其自身包封闭管理，视为已冻结的历史版本（见 `versioning.md` §5.2）。
+- `v1` 不再接受新的基础设施能力叠加：自本规范起，`v1` 不再支持 ETag / `If-None-Match` / `Cache-Control: private, no-cache` / `Vary: Authorization`（见 `conditional-request.md` §2.1）。
 - 对 `v1` 的任何改动仅限于包内兼容性修复，不得改变对外可见响应结构，不得引入全局信封或缓存设施的耦合。
 
 ### 10.2 v2 统一信封与新的基础设施边界
 
-- 自 `v2`（` /api/v2/*`）起，所有响应统一包裹为 `httpresp.Response{Code, Message, Data}` / `httpresp.Success`（见 `api-versioning.md` §5.1），该信封是版本化契约的一部分。
+- 自 `v2`（` /api/v2/*`）起，所有响应统一包裹为 `httpresp.Response{Code, Message, Data}` / `httpresp.Success`（见 `versioning.md` §5.1），该信封是版本化契约的一部分。
 - `v2` 及后续版本的 ETag / 缓存能力按本规范 §3 / §4 / §5 / §6 / §7 / §8 的分层执行：`httpresp` 保持轻量且不感知 ETag，仅通过 `Option(Config{Metadata{Validator}})` 透传声明；ETag 由 `httpcache` 基础设施基于最终 representation（含信封后的 bytes）或声明的 `Validator` 生成与校验，Handler 仅声明验证器来源。
-- Strong ETag 的输入为 v2 信封包裹后的最终 HTTP body bytes，见 `api-etag.md` §3.2。
+- Strong ETag 的输入为 v2 信封包裹后的最终 HTTP body bytes，见 `conditional-request.md` §3.2。
 
 ### 10.3 演进与兼容
 
 - 本规范为目标架构约束，不要求一次性重构现有代码。现有实现若与本规范冲突，应视为**待对齐的技术债**，在后续迭代中逐步迁移。
 - 新增接口与新增缓存能力**必须**遵循本规范；不得以“与旧代码保持一致”为由延续越界设计。
-- `api-etag.md` 中关于 ETag 格式、weak comparison、`304` 语义、`HEAD`、`Cache-Control` 等行为定义继续有效；本规范不改变其语义，仅约束这些行为由哪一层负责。
+- `conditional-request.md` 中关于 ETag 格式、weak comparison、`304` 语义、`HEAD`、`Cache-Control` 等行为定义继续有效；本规范不改变其语义，仅约束这些行为由哪一层负责。
 - 任何对本规范的偏离必须在设计文档中显式记录原因与回迁计划，不得默许。
 
 ---

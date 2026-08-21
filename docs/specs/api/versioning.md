@@ -72,7 +72,7 @@ func Success(data any) Response {
 - `message` 为面向人类的可读信息，可用于兜底展示。
 - `data` 承载业务负载；无业务数据时取 `null` 或对应的空结构，由各接口 DTO 定义。
 - 信封字段名与结构在 v2 内保持稳定，不得随意增删或重命名；变更按 §3 视为 breaking change，需开新版本。
-- 使用方式：`resp := httpresp.Success(dto); httpresp.JSON(c, http.StatusOK, resp, ...)`，表达“返回符合项目 API contract 的 JSON”（见 `api-http-layering.md` §4.1 / §6.1）。
+- 使用方式：`resp := httpresp.Success(dto); httpresp.JSON(c, http.StatusOK, resp, ...)`，表达“返回符合项目 API contract 的 JSON”（见 `architecture.md` §4.1 / §6.1）。
 
 成功与错误响应均包裹于同一信封内，客户端以 `code` 判定业务结果，而非仅依赖 HTTP 状态码。
 
@@ -111,10 +111,10 @@ ETag 可以直接保持可读格式；不对受约束的字段额外做编码。
 
 ### 6.1 ETag 的版本范围与分层
 
-`api-etag.md` 定义的 ETag 能力仅自 `v2` 起生效（`api-etag.md` §2.1），且按 `api-http-layering.md` 的分层执行：
+`conditional-request.md` 定义的 ETag 能力仅自 `v2` 起生效（`conditional-request.md` §2.1），且按 `architecture.md` 的分层执行：
 
 - `v1`（` /api/*`）不再支持 ETag：不生成 `ETag`，不处理 `If-None-Match`，不叠加 `Cache-Control: private, no-cache` / `Vary: Authorization` 等缓存设施。
-- `v2`（` /api/v2/*`）的验证器由 `httpcache` 提供（`httpcache.Validator` / `httpcache.Weak` / `httpcache.Strong`），通过 `httpresp.JSON(..., httpcache.WithValidator(...))` 声明式注入，`httpresp` 不感知 ETag（见 `api-http-layering.md` §5 / §6 / §9）。
+- `v2`（` /api/v2/*`）的验证器由 `httpcache` 提供（`httpcache.Validator` / `httpcache.Weak` / `httpcache.Strong`），通过 `httpresp.JSON(..., httpcache.WithValidator(...))` 声明式注入，`httpresp` 不感知 ETag（见 `architecture.md` §5 / §6 / §9）。
 
 ## 7. 兼容性保证
 

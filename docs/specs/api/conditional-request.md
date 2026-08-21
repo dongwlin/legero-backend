@@ -38,8 +38,8 @@ ETag 仅应用于：
 - 其他非 `200` 状态
 - `4xx`
 - `5xx`
-- 基础设施探活接口 `GET /healthz`（见 `docs/specs/api-healthz.md`，该接口不参与缓存体系）
-- 事实上的 v1 路由 ` /api/*`（见 `api-versioning.md` §2 / §7，v1 不再支持 ETag 能力）
+- 基础设施探活接口 `GET /healthz`（见 `docs/specs/operations/health-check.md`，该接口不参与缓存体系）
+- 事实上的 v1 路由 ` /api/*`（见 `versioning.md` §2 / §7，v1 不再支持 ETag 能力）
 
 ### 2.1 版本范围
 
@@ -50,7 +50,7 @@ ETag 能力仅自 `v2`（` /api/v2/*`）起生效；`v1`（` /api/*`）不再支
 - 不设置 `Cache-Control: private, no-cache`。
 - 不设置 `Vary: Authorization`（为 ETag 引入的该值）。
 
-客户端对 v1 携带 `If-None-Match` 时，服务端忽略该头并按普通 `200` 返回。该冻结策略与 `api-versioning.md` §7 及 `api-http-layering.md` §10 协同：v1 的响应形态由其自身包封闭管理，不再叠加新的缓存基础设施。
+客户端对 v1 携带 `If-None-Match` 时，服务端忽略该头并按普通 `200` 返回。该冻结策略与 `versioning.md` §7 及 `architecture.md` §10 协同：v1 的响应形态由其自身包封闭管理，不再叠加新的缓存基础设施。
 
 ---
 
@@ -152,8 +152,8 @@ GET /orders/:id      → 保持旧响应结构不变
 GET /v2/order/:id    → 新响应结构
 ```
 
-> [!note]  
-> 响应结构变更必须通过新的路由版本进行，具体约定见 `api-versioning.md`。
+> [!note]
+> 响应结构变更必须通过新的路由版本进行，具体约定见 `versioning.md`。
 
 ---
 

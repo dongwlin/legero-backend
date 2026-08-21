@@ -39,10 +39,10 @@ Feature behavior specs are delegated to the `docs/specs/` directory; read every
 spec applicable to the task before starting task work. Specs are normative —
 when code conflicts with a spec, fix the code or update the spec deliberately.
 
-* `docs/specs/api-etag.md` — ETag generation and `If-None-Match` revalidation (v2+ only; v1 `/api/*` no longer supports ETag)
-* `docs/specs/api-versioning.md` — route versioning, v2 unified `Response{Code, Message, Data}` envelope, and v1 self-contained ownership
-* `docs/specs/api-healthz.md` — liveness endpoint excluded from ETag and cache handling
-* `docs/specs/api-http-layering.md` — HTTP cache / validator / httpresp / handler / Response Meta layering and composable infrastructure
+* `docs/specs/api/versioning.md` — route versioning, v2 unified `Response{Code, Message, Data}` envelope, and v1 self-contained ownership
+* `docs/specs/api/architecture.md` — HTTP cache / validator / httpresp / handler / Response Meta layering and composable infrastructure
+* `docs/specs/api/conditional-request.md` — ETag generation and `If-None-Match` revalidation (v2+ only; v1 `/api/*` no longer supports ETag)
+* `docs/specs/operations/health-check.md` — liveness endpoint excluded from ETag and cache handling
 
 ## Conventions
 
