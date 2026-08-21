@@ -39,6 +39,18 @@ ETag 仅应用于：
 - `4xx`
 - `5xx`
 - 基础设施探活接口 `GET /healthz`（见 `docs/specs/api-healthz.md`，该接口不参与缓存体系）
+- 事实上的 v1 路由 ` /api/*`（见 `api-versioning.md` §2 / §7，v1 不再支持 ETag 能力）
+
+### 2.1 版本范围
+
+ETag 能力仅自 `v2`（` /api/v2/*`）起生效；`v1`（` /api/*`）不再支持 ETag：
+
+- 不生成 `ETag`。
+- 不处理 `If-None-Match`，即使客户端发送该头也始终返回 `200` 并携带完整响应体，不返回 `304`。
+- 不设置 `Cache-Control: private, no-cache`。
+- 不设置 `Vary: Authorization`（为 ETag 引入的该值）。
+
+客户端对 v1 携带 `If-None-Match` 时，服务端忽略该头并按普通 `200` 返回。该冻结策略与 `api-versioning.md` §7 及 `api-http-layering.md` §10 协同：v1 的响应形态由其自身包封闭管理，不再叠加新的缓存基础设施。
 
 ---
 
@@ -867,6 +879,7 @@ Version 与 Hash 两种方案均至少覆盖：
 - 非 GET / HEAD 不生成 ETag。
 - 非 `200 OK` 不生成 ETag。
 - 错误响应不生成 ETag。
+- v1（` /api/*`）不生成 ETag，携带 `If-None-Match` 仍返回 `200`。
 
 ---
 
@@ -919,7 +932,10 @@ SHA256(final response body bytes)
 |`GET /orders?status=...`|查询列表|SHA-256 Strong ETag|
 |`GET /stats/daily`|统计|SHA-256 Strong ETag|
 |`GET /stats/report`|聚合报表|SHA-256 Strong ETag|
-|`GET /bootstrap`|动态组合数据|按实际 representation 特性决定|
+|`GET /bootstrap`|动态组合数据|按实际 representation 特性决定（仅 v2 生效）|
+
+> [!note]
+> 自 v2 起有效：本节及第 3 / 4 / 5 / 7 / 8 章定义的 ETag 选型、格式、`If-None-Match`、`HEAD`、`Cache-Control` / `Vary` 行为仅适用于 ` /api/v2/*`。` /api/*`（事实 v1）按 §2.1 冻结，不再生成或处理 ETag。
 
 ---
 
