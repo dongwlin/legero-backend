@@ -9,7 +9,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/handler/v1/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
@@ -59,7 +59,7 @@ func (h *StatsHandler) Daily(c *gin.Context) {
 		})
 	}
 
-	httpresp.PrivateJSONWithETag(c, http.StatusOK, dto.DailyResponse{
+	httpresp.JSON(c, http.StatusOK, dto.DailyResponse{
 		Items: responseItems,
 	})
 }
@@ -93,7 +93,7 @@ func (h *StatsHandler) Report(c *gin.Context) {
 		return
 	}
 
-	httpresp.PrivateJSONWithETag(c, http.StatusOK, toReportDTO(*report, h.location))
+	httpresp.JSON(c, http.StatusOK, toReportDTO(*report, h.location))
 }
 
 func toReportDTO(report domain.Report, location *time.Location) dto.ReportResponse {

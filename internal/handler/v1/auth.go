@@ -8,7 +8,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/handler/v1/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/infra/timex"
@@ -80,7 +80,7 @@ func (h *AuthHandler) Bootstrap(c *gin.Context) {
 		return
 	}
 
-	httpresp.PrivateJSON(c, http.StatusOK, dto.BootstrapResponse{
+	httpresp.JSON(c, http.StatusOK, dto.BootstrapResponse{
 		Bootstrap: toBootstrapDTO(*data, h.location),
 	})
 }

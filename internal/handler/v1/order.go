@@ -10,7 +10,7 @@ import (
 
 	"github.com/dongwlin/legero-backend/internal/apperr"
 	"github.com/dongwlin/legero-backend/internal/domain"
-	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
+	"github.com/dongwlin/legero-backend/internal/handler/v1/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v1/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -53,7 +53,7 @@ func (h *OrderHandler) List(c *gin.Context) {
 		return
 	}
 
-	httpresp.PrivateJSONWithETag(c, http.StatusOK, dto.ListOrdersResponse{
+	httpresp.JSON(c, http.StatusOK, dto.ListOrdersResponse{
 		Items:      toOrderDTOs(result.Items, h.location),
 		NextCursor: result.NextCursor,
 	})

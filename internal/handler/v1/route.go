@@ -41,7 +41,6 @@ func RegisterRoutes(
 	{
 		protected.GET("/bootstrap", authHandler.Bootstrap)
 		protected.GET("/orders", orderHandler.List)
-		protected.HEAD("/orders", orderHandler.List)
 		protected.POST("/orders", orderHandler.Create)
 		protected.PUT("/orders/:id", orderHandler.Update)
 		protected.POST("/orders/:id/actions/toggle-step", orderHandler.ToggleStep)
@@ -50,8 +49,6 @@ func RegisterRoutes(
 		protected.POST("/orders/actions/clear", orderHandler.Clear)
 		protected.POST("/realtime/session", realtimeHandler.CreateSession)
 		protected.GET("/stats/daily", statsHandler.Daily)
-		protected.HEAD("/stats/daily", statsHandler.Daily)
 		protected.GET("/stats/report", statsHandler.Report)
-		protected.HEAD("/stats/report", statsHandler.Report)
 	}
 }
