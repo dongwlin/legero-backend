@@ -43,6 +43,7 @@ when code conflicts with a spec, fix the code or update the spec deliberately.
 * `docs/specs/api/architecture.md` — HTTP cache / validator / httpresp / handler / Response Meta layering and composable infrastructure
 * `docs/specs/api/conditional-request.md` — ETag generation and `If-None-Match` revalidation (v2+ only; v1 `/api/*` no longer supports ETag)
 * `docs/specs/operations/health-check.md` — liveness endpoint excluded from ETag and cache handling
+* `docs/specs/domain/order-date-semantics.md` — order date semantics and time handling rules
 
 ## Conventions
 
