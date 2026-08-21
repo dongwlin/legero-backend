@@ -1,7 +1,5 @@
 package httpresp
 
-const configKey = "httpresp.config"
-
 // ConfigKey returns the gin.Context key under which httpresp.JSON stores
 // the Config for downstream infrastructure (e.g. httpcache middleware).
 func ConfigKey() string {

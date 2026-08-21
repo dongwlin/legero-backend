@@ -7,7 +7,11 @@ import (
 	ginjson "github.com/gin-gonic/gin/codec/json"
 )
 
-const jsonContentType = "application/json; charset=utf-8"
+const (
+	jsonContentType = "application/json; charset=utf-8"
+	configKey       = "httpresp.config"
+	bodyKey         = "httpresp.body"
+)
 
 // Response is the v2 unified envelope. All v2 API responses wrap their
 // business payload inside this structure so clients can rely on a stable
@@ -33,19 +37,33 @@ func JSON(c *gin.Context, status int, body any, opts ...Option) {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	c.Set(configKey, &cfg)
 
 	data, err := ginjson.API.Marshal(body)
 	if err != nil {
 		c.JSON(status, body)
 		return
 	}
+
+	c.Set(configKey, &cfg)
+	c.Set(bodyKey, data)
 	renderBody(c, status, data)
 }
 
 // NoContent sends a 204 with no body.
 func NoContent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
+}
+
+// BodyFromContext retrieves the marshaled response body bytes stored by JSON.
+// Returns nil if no body was stored (e.g. handler did not call JSON, or
+// marshaling failed).
+func BodyFromContext(c *gin.Context) []byte {
+	raw, exists := c.Get(bodyKey)
+	if !exists {
+		return nil
+	}
+	data, _ := raw.([]byte)
+	return data
 }
 
 func renderBody(c *gin.Context, status int, body []byte) {
