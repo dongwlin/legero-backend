@@ -62,34 +62,28 @@ func HTTPCache() gin.HandlerFunc {
 
 		raw, exists := c.Get(httpresp.ConfigKey())
 		if exists {
-			if cfg, ok := raw.(*httpresp.Config); ok && cfg != nil && cfg.Metadata.Validator != nil {
-				validator := cfg.Metadata.Validator
-				if httpcache.IsCacheableMethod(method) && httpcache.IsCacheableStatus(status) {
+			if cfg, ok := raw.(*httpresp.Config); ok && cfg != nil {
+				// Metadata is intentionally opaque to httpresp. Only the
+				// infrastructure that owns a descriptor may interpret it.
+				validator, ok := cfg.Metadata.Validator.(httpcache.Validator)
+				if ok && validator != nil && httpcache.IsCacheableMethod(method) && httpcache.IsCacheableStatus(status) {
 					httpcache.SetPrivateCachePolicy(c.Writer)
 
-					// Weak validators produce the ETag string directly. Strong
-					// validators signal via an empty ETag (see httpcache.Strong);
-					// the middleware computes the hash from the captured body
-					// bytes.
-					etag = validator.ETag()
-					if etag == "" {
-						// Strong: compute from captured body. For GET the body
-						// was buffered by bufferingWriter.Write; for HEAD no
-						// body was written, so we retrieve the marshaled bytes
-						// stored by httpresp.JSON.
-						body := buf.body.Bytes()
-						if len(body) == 0 {
-							body = httpresp.BodyFromContext(c)
-						}
-						etag = httpcache.StrongETag(body)
+					// The middleware computes Strong validators from the exact
+					// bytes captured from the GET response (or retained by JSON for
+					// HEAD); Weak validators provide their own stable value.
+					body := buf.body.Bytes()
+					if len(body) == 0 {
+						body = httpresp.BodyFromContext(c)
 					}
+					etag = httpcache.ETag(validator, body)
 					if etag != "" {
 						httpcache.SetETag(c.Writer, etag)
 
-						ifNoneMatch := c.GetHeader("If-None-Match")
-						if ifNoneMatch == "" {
-							ifNoneMatch = strings.Join(c.Request.Header.Values("If-None-Match"), ",")
-						}
+						// Header.Values returns every field line. Joining all
+						// values is required before parsing because a matching tag
+						// may occur in a later If-None-Match field.
+						ifNoneMatch := strings.Join(c.Request.Header.Values("If-None-Match"), ",")
 						if ifNoneMatch != "" && httpcache.MatchIfNoneMatch(ifNoneMatch, etag) {
 							notModified = true
 						}

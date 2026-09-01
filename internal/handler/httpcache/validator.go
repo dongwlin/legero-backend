@@ -6,10 +6,9 @@ import (
 	"fmt"
 )
 
-// Validator produces an ETag string for a given HTTP representation.
+// Validator identifies the representation validator selected by a handler.
 // Concrete implementations are Strong (byte-level SHA-256) and Weak
-// (resource-version based). The interface mirrors httpresp.Validator so that
-// httpcache can provide implementations without importing httpresp.
+// (resource-version based).
 type Validator interface {
 	ETag() string
 }
@@ -33,6 +32,21 @@ func (strongValidator) ETag() string {
 	return ""
 }
 
+// ETag materializes the validator for the supplied representation bytes.
+// Strong validators are derived from the final bytes; Weak validators retain
+// the resource-version value supplied at construction time. Keeping this
+// dispatch in httpcache leaves the response renderer unaware of validator
+// behavior.
+func ETag(validator Validator, body []byte) string {
+	if validator == nil {
+		return ""
+	}
+	if _, ok := validator.(strongValidator); ok {
+		return StrongETag(body)
+	}
+	return validator.ETag()
+}
+
 // Weak creates a Weak ETag validator from a resource identifier and version.
 // Format: W/"{resource}-{id}-{version}"
 //
@@ -40,7 +54,11 @@ func (strongValidator) ETag() string {
 // id must be a safe token (e.g. a UUID string).
 // version must be a monotonic business-resource version.
 func Weak(resource, id string, version int64) Validator {
-	return weakValidator{etag: fmt.Sprintf(`W/"%s-%s-%d"`, resource, id, version)}
+	value := fmt.Sprintf("%s-%s-%d", resource, id, version)
+	if !safeOpaque(value) {
+		value = hex.EncodeToString([]byte(value))
+	}
+	return weakValidator{etag: `W/"` + value + `"`}
 }
 
 type weakValidator struct {
@@ -56,4 +74,19 @@ func (v weakValidator) ETag() string {
 func StrongETag(body []byte) string {
 	digest := sha256.Sum256(body)
 	return `"` + hex.EncodeToString(digest[:]) + `"`
+}
+
+// safeOpaque reports whether value can be embedded directly in an entity-tag
+// opaque value. Invalid bytes are encoded by Weak before the value is exposed
+// as a response header, preventing control characters or quotes from escaping
+// the header field.
+func safeOpaque(value string) bool {
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if character == 0x21 || character >= 0x23 && character <= 0x7e || character >= 0x80 {
+			continue
+		}
+		return false
+	}
+	return true
 }

@@ -161,6 +161,33 @@ func TestIfNoneMatchMiss200(t *testing.T) {
 	mustHave(t, resp, "ETag", `W/"thing-abc-123-42"`)
 }
 
+func TestIfNoneMatchCombinesRepeatedHeaderFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(HTTPCache())
+	r.GET("/thing", func(c *gin.Context) {
+		httpresp.JSON(c, http.StatusOK, map[string]any{"a": 1}, httpcache.WithValidator(httpcache.Weak("thing", "abc-123", 42)))
+	})
+
+	initial := httptest.NewRecorder()
+	r.ServeHTTP(initial, httptest.NewRequest(http.MethodGet, "/thing", nil))
+	etag := initial.Header().Get("ETag")
+
+	req := httptest.NewRequest(http.MethodGet, "/thing", nil)
+	req.Header.Add("If-None-Match", `"other"`)
+	req.Header.Add("If-None-Match", etag)
+	revalidated := httptest.NewRecorder()
+	r.ServeHTTP(revalidated, req)
+
+	if revalidated.Code != http.StatusNotModified {
+		t.Fatalf("status = %d, want %d", revalidated.Code, http.StatusNotModified)
+	}
+	if revalidated.Body.Len() != 0 {
+		t.Fatalf("body = %q, want empty", revalidated.Body.String())
+	}
+	mustHave(t, &http.Response{Header: revalidated.Header()}, "ETag", etag)
+}
+
 // Non-cacheable method: POST must not produce ETag or cache headers.
 func TestPostNoETag(t *testing.T) {
 	gin.SetMode(gin.TestMode)

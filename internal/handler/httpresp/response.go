@@ -30,16 +30,22 @@ func Success(data any) Response {
 
 // JSON renders a v2 JSON response. It serializes body, sets Content-Type, and
 // writes the response. For HEAD requests the body is not written; the status
-// and headers are recorded and the header commit is left to the owning HTTP
-// cache middleware, which must set ETag and cache headers before the wire
-// header is finalized (a premature commit would freeze the header set). Any
-// Option values (such as a cache validator declared by the handler) are stored
-// in the gin.Context for downstream infrastructure (e.g. the HTTP cache
-// middleware) to consume — httpresp itself never acts on them.
+// and headers are recorded and the header commit is left to the response
+// infrastructure that owns the writer lifecycle. Any Option values are stored
+// in the gin.Context for downstream infrastructure to consume — this package
+// itself only renders the representation.
 func JSON(c *gin.Context, status int, body any, opts ...Option) {
+	// A handler may render more than once. Clear metadata from an earlier
+	// successful render before attempting this one so a marshal failure cannot
+	// make downstream infrastructure apply stale representation data.
+	delete(c.Keys, configKey)
+	delete(c.Keys, bodyKey)
+
 	cfg := Config{}
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 
 	data, err := ginjson.API.Marshal(body)
