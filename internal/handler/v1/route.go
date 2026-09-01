@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/dongwlin/legero-backend/internal/handler/middleware"
+	v1httpresp "github.com/dongwlin/legero-backend/internal/handler/v1/httpresp"
 	"github.com/dongwlin/legero-backend/internal/infra/config"
 	"github.com/dongwlin/legero-backend/internal/infra/realtime"
 	"github.com/dongwlin/legero-backend/internal/service"
@@ -37,7 +38,7 @@ func RegisterRoutes(
 	r.GET("/ws", realtimeHandler.ServeWS)
 
 	protected := r.Group("/")
-	protected.Use(middleware.Auth(authSvc))
+	protected.Use(middleware.AuthWithError(authSvc, v1httpresp.AbortError))
 	{
 		protected.GET("/bootstrap", authHandler.Bootstrap)
 		protected.GET("/orders", orderHandler.List)

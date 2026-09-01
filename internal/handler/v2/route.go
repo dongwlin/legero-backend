@@ -11,10 +11,12 @@ import (
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
-// RegisterRoutes registers all v2 routes on the given router. The v2 group
-// applies the HTTP cache middleware which owns the response writer lifecycle:
-// it wraps the writer to capture the response body, then after the handler
-// completes generates an ETag, checks If-None-Match, and sets cache headers.
+// RegisterRoutes registers all v2 routes on the given router.
+//
+// Every v2 response is wrapped in the unified httpresp.Response envelope. The
+// WebSocket upgrade stays at GET /api/ws: it speaks the realtime message
+// protocol rather than the v2 JSON envelope, so only its ticket endpoint is
+// versioned here.
 func RegisterRoutes(
 	r gin.IRouter,
 	authSvc service.Auth,
@@ -26,16 +28,30 @@ func RegisterRoutes(
 	cfg *config.Config,
 	now func() time.Time,
 ) {
-	// Placeholder for v2 auth middleware — for now, reuse v1's auth
-	// middleware. v2-specific auth (e.g. different token format) can be
-	// introduced later without affecting v1.
-	_ = authSvc
+	authHandler := NewAuthHandler(authSvc, location)
+	orderHandler := NewOrderHandler(orderSvc, location)
+	statsHandler := NewStatsHandler(statsSvc, location)
+	realtimeHandler := NewRealtimeHandler(sessions, location)
+
+	authGroup := r.Group("/auth")
+	{
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.POST("/refresh", authHandler.Refresh)
+	}
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth(authSvc))
-	protected.Use(middleware.HTTPCache())
-
-	// v2 routes will be registered here as handlers are migrated.
-	// Example (not yet implemented):
-	//   protected.GET("/orders/:id", orderHandler.Get)
+	{
+		protected.GET("/bootstrap", authHandler.Bootstrap)
+		protected.GET("/orders", orderHandler.List)
+		protected.POST("/orders", orderHandler.Create)
+		protected.PUT("/orders/:id", orderHandler.Update)
+		protected.POST("/orders/:id/actions/toggle-step", orderHandler.ToggleStep)
+		protected.POST("/orders/:id/actions/toggle-served", orderHandler.ToggleServed)
+		protected.DELETE("/orders/:id", orderHandler.Delete)
+		protected.POST("/orders/actions/clear", orderHandler.Clear)
+		protected.POST("/realtime/session", realtimeHandler.CreateSession)
+		protected.GET("/stats/daily", statsHandler.Daily)
+		protected.GET("/stats/report", statsHandler.Report)
+	}
 }
