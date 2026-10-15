@@ -1,0 +1,26 @@
+goos: linux
+goarch: amd64
+pkg: github.com/dongwlin/legero-backend/internal/infra/performance
+cpu: AMD Ryzen 7 5800H with Radeon Graphics         
+BenchmarkQueryHookDisabled-16          	329708622	         3.671 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	301315690	         3.872 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	301238908	         3.808 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	326971653	         3.841 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	271561909	         8.872 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 1428025	       889.5 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 2878916	       432.1 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 5100855	       265.5 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 4596526	       229.6 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6510974	       186.4 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 3742540	       363.4 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 3832406	       337.9 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 3345508	       315.2 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4038336	       284.9 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4070862	       285.2 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 2945780	       395.3 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3446812	       358.0 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3320326	       350.2 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3494469	       340.7 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 2838626	       370.5 ns/op	     192 B/op	       2 allocs/op
+PASS
+ok  	github.com/dongwlin/legero-backend/internal/infra/performance	25.245s

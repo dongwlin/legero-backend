@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
+
+	"github.com/dongwlin/legero-backend/internal/infra/performance"
 )
 
 // Options holds configuration for database connection.
@@ -35,6 +37,7 @@ func New(ctx context.Context, opts Options) (*bun.DB, error) {
 
 	sqldb := stdlib.OpenDBFromPool(pool)
 	db := bun.NewDB(sqldb, pgdialect.New())
+	db.AddQueryHook(&performance.QueryHook{})
 
 	// Verify connection
 	if err := db.PingContext(ctx); err != nil {

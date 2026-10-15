@@ -31,6 +31,7 @@ func NewRouter(
 	router.Use(
 		middleware.CORS(),
 		middleware.Logger(appLogger),
+		middleware.PerformanceTiming(),
 		gin.Recovery(),
 	)
 	router.GET("/healthz", func(c *gin.Context) {
