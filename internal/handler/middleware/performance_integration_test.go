@@ -61,11 +61,13 @@ func TestPerformanceTimingPostgresHTTPRoundTrip(t *testing.T) {
 		if id != "" {
 			request.Header.Set(PerformanceRequestIDHeader, id)
 		}
+		started := time.Now()
 		response, err := client.Do(request)
 		require.NoError(t, err)
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
 		require.NoError(t, response.Body.Close())
+		clientRoundTripMS := float64(time.Since(started)) / float64(time.Millisecond)
 		require.Equal(t, http.StatusOK, response.StatusCode)
 		require.JSONEq(t, `{"status":"ok"}`, string(body))
 		header := response.Header.Get("Server-Timing")
@@ -83,6 +85,7 @@ func TestPerformanceTimingPostgresHTTPRoundTrip(t *testing.T) {
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, dbMS, 20.0, "the controlled 25 ms query must be visible")
 		require.GreaterOrEqual(t, appMS, dbMS)
-		t.Logf("request=%s app=%.3f ms db=%.3f ms completed_queries=1", id, appMS, dbMS)
+		require.GreaterOrEqual(t, clientRoundTripMS, appMS)
+		t.Logf("request=%s client_round_trip=%.3f ms app=%.3f ms db=%.3f ms completed_queries=1", id, clientRoundTripMS, appMS, dbMS)
 	}
 }

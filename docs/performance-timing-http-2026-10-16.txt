@@ -1,0 +1,112 @@
+{
+  "capturedAt": "2026-10-15T23:28:16.816506+00:00",
+  "commit": "95088ab48eda36c9a2363f65380526a20aebfcd5",
+  "branch": "feat/api-v2",
+  "workingTreeStatus": "M internal/handler/middleware/performance_integration_test.go",
+  "go": "go version go1.26.9-X:nodwarf5 linux/amd64",
+  "cpu": "AMD Ryzen 7 5800H with Radeon Graphics",
+  "sourceSha256": {
+    "internal/infra/performance/trace.go": "6e7bc901e335c4e12a14587907c892692bc1c96fc312f0157b7376fe922d62af",
+    "internal/infra/performance/trace_test.go": "73023771db5934c316d2191db8c6a558cfb93e587a908fae8697ae696cdeee8b",
+    "internal/handler/middleware/performance.go": "3251867da38ec60e3544e3a055bb80054dedf54866d34d635e1549b28ed2eb6d",
+    "internal/handler/middleware/performance_integration_test.go": "c5d8f321326d164d8c9983bf49ac04ed3301a62e380bdc699b9551d33fb3cb3c",
+    "internal/infra/database/database.go": "2b84c97986d0a18a3ee31772b55f7178ee1f96724de2134cfae3d2967e8ecfab",
+    "go.mod": "f777adb6d3250f2ede63b76b33050405b8eeae027d7eaa5be70677ff925aee93",
+    "go.sum": "72e424b1f39852d7f37e63462f5f175da17871e7d6552e511bcde965ab9fe5d8"
+  },
+  "execution": "sequential; no frontend benchmark/build/test or browser fixture during capture; development host, no Android device"
+}
+
+Command: go test ./internal/handler/middleware -run ^TestPerformanceTimingPostgresHTTPRoundTrip$ -count=5 -v
+
+=== RUN   TestPerformanceTimingPostgresHTTPRoundTrip
+2026/10/16 07:28:17 github.com/testcontainers/testcontainers-go - Connected to docker: 
+  Server Version: 29.9.0
+  API Version: 1.54
+  Operating System: Fedora Linux 44 (Workstation Edition)
+  Total Memory: 31927 MB
+  Testcontainers for Go Version: v0.42.0
+  Resolved Docker Host: unix:///var/run/docker.sock
+  Resolved Docker Socket Path: /var/run/docker.sock
+  Test SessionID: d91a97f21e9e7a56344da8641a0109c91ab93f28c9470b790cae9b93ab6a7dde
+  Test ProcessID: 6a65d32a-3965-4ccf-a03f-9dde5db9b494
+2026/10/16 07:28:17 🐳 Creating container for image postgres:18
+2026/10/16 07:28:18 🐳 Creating container for image testcontainers/ryuk:0.13.0
+2026/10/16 07:28:18 ✅ Container created: 3539bea0875a
+2026/10/16 07:28:18 🐳 Starting container: 3539bea0875a
+2026/10/16 07:28:18 ✅ Container started: 3539bea0875a
+2026/10/16 07:28:18 ⏳ Waiting for container id 3539bea0875a image: testcontainers/ryuk:0.13.0. Waiting for: port 8080/tcp to be listening
+2026/10/16 07:28:18 Shell not found in container
+2026/10/16 07:28:18 🔔 Container is ready: 3539bea0875a
+2026/10/16 07:28:18 ✅ Container created: 23ee2a18ac92
+2026/10/16 07:28:18 🐳 Starting container: 23ee2a18ac92
+2026/10/16 07:28:18 ✅ Container started: 23ee2a18ac92
+2026/10/16 07:28:18 ⏳ Waiting for container id 23ee2a18ac92 image: postgres:18. Waiting for: all of: [log message "database system is ready to accept connections" (occurrence: 2)]
+2026/10/16 07:28:20 🔔 Container is ready: 23ee2a18ac92
+    performance_integration_test.go:89: request=a13af206-010e-4141-9ae5-235ff0adeac0:17 client_round_trip=25.691 ms app=25.460 ms db=25.444 ms completed_queries=1
+    performance_integration_test.go:89: request=local-controlsession:2 client_round_trip=25.705 ms app=25.452 ms db=25.439 ms completed_queries=1
+2026/10/16 07:28:20 🐳 Stopping container: 23ee2a18ac92
+2026/10/16 07:28:20 ✅ Container stopped: 23ee2a18ac92
+2026/10/16 07:28:20 🐳 Terminating container: 23ee2a18ac92
+2026/10/16 07:28:20 🚫 Container terminated: 23ee2a18ac92
+--- PASS: TestPerformanceTimingPostgresHTTPRoundTrip (3.07s)
+=== RUN   TestPerformanceTimingPostgresHTTPRoundTrip
+2026/10/16 07:28:20 🐳 Creating container for image postgres:18
+2026/10/16 07:28:21 ✅ Container created: 988791a36405
+2026/10/16 07:28:21 🐳 Starting container: 988791a36405
+2026/10/16 07:28:21 ✅ Container started: 988791a36405
+2026/10/16 07:28:21 ⏳ Waiting for container id 988791a36405 image: postgres:18. Waiting for: all of: [log message "database system is ready to accept connections" (occurrence: 2)]
+2026/10/16 07:28:23 🔔 Container is ready: 988791a36405
+    performance_integration_test.go:89: request=a13af206-010e-4141-9ae5-235ff0adeac0:17 client_round_trip=25.821 ms app=25.559 ms db=25.541 ms completed_queries=1
+    performance_integration_test.go:89: request=local-controlsession:2 client_round_trip=25.692 ms app=25.471 ms db=25.457 ms completed_queries=1
+2026/10/16 07:28:23 🐳 Stopping container: 988791a36405
+2026/10/16 07:28:23 ✅ Container stopped: 988791a36405
+2026/10/16 07:28:23 🐳 Terminating container: 988791a36405
+2026/10/16 07:28:23 🚫 Container terminated: 988791a36405
+--- PASS: TestPerformanceTimingPostgresHTTPRoundTrip (2.63s)
+=== RUN   TestPerformanceTimingPostgresHTTPRoundTrip
+2026/10/16 07:28:23 🐳 Creating container for image postgres:18
+2026/10/16 07:28:23 ✅ Container created: 389f2580983b
+2026/10/16 07:28:23 🐳 Starting container: 389f2580983b
+2026/10/16 07:28:23 ✅ Container started: 389f2580983b
+2026/10/16 07:28:23 ⏳ Waiting for container id 389f2580983b image: postgres:18. Waiting for: all of: [log message "database system is ready to accept connections" (occurrence: 2)]
+2026/10/16 07:28:25 🔔 Container is ready: 389f2580983b
+    performance_integration_test.go:89: request=a13af206-010e-4141-9ae5-235ff0adeac0:17 client_round_trip=25.643 ms app=25.421 ms db=25.408 ms completed_queries=1
+    performance_integration_test.go:89: request=local-controlsession:2 client_round_trip=25.671 ms app=25.438 ms db=25.422 ms completed_queries=1
+2026/10/16 07:28:25 🐳 Stopping container: 389f2580983b
+2026/10/16 07:28:26 ✅ Container stopped: 389f2580983b
+2026/10/16 07:28:26 🐳 Terminating container: 389f2580983b
+2026/10/16 07:28:26 🚫 Container terminated: 389f2580983b
+--- PASS: TestPerformanceTimingPostgresHTTPRoundTrip (2.64s)
+=== RUN   TestPerformanceTimingPostgresHTTPRoundTrip
+2026/10/16 07:28:26 🐳 Creating container for image postgres:18
+2026/10/16 07:28:26 ✅ Container created: 1026b64c0f24
+2026/10/16 07:28:26 🐳 Starting container: 1026b64c0f24
+2026/10/16 07:28:26 ✅ Container started: 1026b64c0f24
+2026/10/16 07:28:26 ⏳ Waiting for container id 1026b64c0f24 image: postgres:18. Waiting for: all of: [log message "database system is ready to accept connections" (occurrence: 2)]
+2026/10/16 07:28:28 🔔 Container is ready: 1026b64c0f24
+    performance_integration_test.go:89: request=a13af206-010e-4141-9ae5-235ff0adeac0:17 client_round_trip=25.677 ms app=25.419 ms db=25.405 ms completed_queries=1
+    performance_integration_test.go:89: request=local-controlsession:2 client_round_trip=25.635 ms app=25.388 ms db=25.371 ms completed_queries=1
+2026/10/16 07:28:28 🐳 Stopping container: 1026b64c0f24
+2026/10/16 07:28:28 ✅ Container stopped: 1026b64c0f24
+2026/10/16 07:28:28 🐳 Terminating container: 1026b64c0f24
+2026/10/16 07:28:28 🚫 Container terminated: 1026b64c0f24
+--- PASS: TestPerformanceTimingPostgresHTTPRoundTrip (2.51s)
+=== RUN   TestPerformanceTimingPostgresHTTPRoundTrip
+2026/10/16 07:28:28 🐳 Creating container for image postgres:18
+2026/10/16 07:28:28 ✅ Container created: e1cf05b41f2f
+2026/10/16 07:28:28 🐳 Starting container: e1cf05b41f2f
+2026/10/16 07:28:29 ✅ Container started: e1cf05b41f2f
+2026/10/16 07:28:29 ⏳ Waiting for container id e1cf05b41f2f image: postgres:18. Waiting for: all of: [log message "database system is ready to accept connections" (occurrence: 2)]
+2026/10/16 07:28:30 🔔 Container is ready: e1cf05b41f2f
+    performance_integration_test.go:89: request=a13af206-010e-4141-9ae5-235ff0adeac0:17 client_round_trip=25.601 ms app=25.379 ms db=25.367 ms completed_queries=1
+    performance_integration_test.go:89: request=local-controlsession:2 client_round_trip=25.624 ms app=25.411 ms db=25.397 ms completed_queries=1
+2026/10/16 07:28:30 🐳 Stopping container: e1cf05b41f2f
+2026/10/16 07:28:31 ✅ Container stopped: e1cf05b41f2f
+2026/10/16 07:28:31 🐳 Terminating container: e1cf05b41f2f
+2026/10/16 07:28:31 🚫 Container terminated: e1cf05b41f2f
+--- PASS: TestPerformanceTimingPostgresHTTPRoundTrip (2.57s)
+PASS
+ok  	github.com/dongwlin/legero-backend/internal/handler/middleware	13.480s
+
+Exit code: 0
