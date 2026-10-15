@@ -50,9 +50,6 @@ Instructions are delegated to `docs/agents/conventions.md`.
 
 Instructions are delegated to `docs/agents/skills.md`.
 
-## Sub-agents
-Instructions are delegated to `docs/agents/subagents.md`.
-
 ## Local Environment
 
 If `AGENTS.local.md` exists in the repository root, machine-local instructions
