@@ -13,6 +13,7 @@ import (
 	"github.com/dongwlin/legero-backend/internal/handler/httpresp"
 	"github.com/dongwlin/legero-backend/internal/handler/v2/dto"
 	"github.com/dongwlin/legero-backend/internal/infra/identity"
+	"github.com/dongwlin/legero-backend/internal/infra/timex"
 	"github.com/dongwlin/legero-backend/internal/service"
 )
 
@@ -67,13 +68,16 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 
-	var input domain.CreateOrdersInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req dto.CreateOrdersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid create order payload"))
 		return
 	}
 
-	items, err := h.orderSvc.CreateBatch(c.Request.Context(), actor, input)
+	items, err := h.orderSvc.CreateBatch(c.Request.Context(), actor, domain.CreateOrdersInput{
+		Quantity: req.Quantity,
+		Form:     toOrderFormInput(req.Form),
+	})
 	if err != nil {
 		httpresp.AbortError(c, err)
 		return
@@ -97,20 +101,24 @@ func (h *OrderHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var input domain.UpdateOrderInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req dto.UpdateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid update order payload"))
 		return
 	}
 
-	item, err := h.orderSvc.UpdateForm(c.Request.Context(), actor, orderID, input)
+	item, err := h.orderSvc.UpdateForm(c.Request.Context(), actor, orderID, domain.UpdateOrderInput{
+		Form:              toOrderFormInput(req.Form),
+		ExpectedVersion:   req.ExpectedVersion,
+		ExpectedUpdatedAt: req.ExpectedUpdatedAt,
+	})
 	if err != nil {
 		httpresp.AbortError(c, err)
 		return
 	}
 
 	httpresp.JSON(c, http.StatusOK, httpresp.Success(dto.UpdateOrderResponseData{
-		Item: item.ToDTO(h.location),
+		Item: toOrderDTO(*item, h.location),
 	}))
 }
 
@@ -127,20 +135,24 @@ func (h *OrderHandler) ToggleStep(c *gin.Context) {
 		return
 	}
 
-	var input domain.ToggleStepInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req dto.ToggleStepRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid toggle step payload"))
 		return
 	}
 
-	item, err := h.orderSvc.ToggleStep(c.Request.Context(), actor, orderID, input)
+	item, err := h.orderSvc.ToggleStep(c.Request.Context(), actor, orderID, domain.ToggleStepInput{
+		Step:              req.Step,
+		ExpectedVersion:   req.ExpectedVersion,
+		ExpectedUpdatedAt: req.ExpectedUpdatedAt,
+	})
 	if err != nil {
 		httpresp.AbortError(c, err)
 		return
 	}
 
 	httpresp.JSON(c, http.StatusOK, httpresp.Success(dto.UpdateOrderResponseData{
-		Item: item.ToDTO(h.location),
+		Item: toOrderDTO(*item, h.location),
 	}))
 }
 
@@ -157,20 +169,23 @@ func (h *OrderHandler) ToggleServed(c *gin.Context) {
 		return
 	}
 
-	var input domain.ToggleServedInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req dto.ToggleServedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid toggle served payload"))
 		return
 	}
 
-	item, err := h.orderSvc.ToggleServed(c.Request.Context(), actor, orderID, input)
+	item, err := h.orderSvc.ToggleServed(c.Request.Context(), actor, orderID, domain.ToggleServedInput{
+		ExpectedVersion:   req.ExpectedVersion,
+		ExpectedUpdatedAt: req.ExpectedUpdatedAt,
+	})
 	if err != nil {
 		httpresp.AbortError(c, err)
 		return
 	}
 
 	httpresp.JSON(c, http.StatusOK, httpresp.Success(dto.UpdateOrderResponseData{
-		Item: item.ToDTO(h.location),
+		Item: toOrderDTO(*item, h.location),
 	}))
 }
 
@@ -192,7 +207,7 @@ func (h *OrderHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	httpresp.NoContent(c)
+	httpresp.JSON(c, http.StatusOK, httpresp.Success(nil))
 }
 
 // Clear deletes orders from a workspace.
@@ -203,13 +218,13 @@ func (h *OrderHandler) Clear(c *gin.Context) {
 		return
 	}
 
-	var input domain.ClearWorkspaceInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req dto.ClearOrdersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.AbortError(c, apperr.ValidationError("invalid clear payload"))
 		return
 	}
 
-	count, err := h.orderSvc.ClearWorkspace(c.Request.Context(), actor, input.Confirm, input.Mode)
+	count, err := h.orderSvc.ClearWorkspace(c.Request.Context(), actor, req.Confirm, domain.ClearWorkspaceMode(req.Mode))
 	if err != nil {
 		httpresp.AbortError(c, err)
 		return
@@ -252,11 +267,66 @@ func parseLimit(value string) (int, error) {
 	return limit, nil
 }
 
-// toOrderDTOs converts a slice of Order to a slice of OrderDTO.
-func toOrderDTOs(items []domain.Order, location *time.Location) []domain.OrderDTO {
-	dtos := make([]domain.OrderDTO, 0, len(items))
+// toOrderDTOs converts orders to the independently versioned v2 representation.
+func toOrderDTOs(items []domain.Order, location *time.Location) []dto.Order {
+	dtos := make([]dto.Order, 0, len(items))
 	for _, item := range items {
-		dtos = append(dtos, item.ToDTO(location))
+		dtos = append(dtos, toOrderDTO(item, location))
 	}
 	return dtos
+}
+
+func toOrderDTO(order domain.Order, location *time.Location) dto.Order {
+	meatCodes := make([]int16, len(order.SelectedMeatCodes))
+	copy(meatCodes, order.SelectedMeatCodes)
+	item := dto.Order{
+		ID:                   order.ID.String(),
+		Version:              order.Version,
+		DisplayNo:            order.DisplayNo,
+		StapleTypeCode:       order.StapleTypeCode,
+		SizeCode:             order.SizeCode,
+		CustomSizePriceCents: order.CustomSizePriceCents,
+		StapleAmountCode:     order.StapleAmountCode,
+		ExtraStapleUnits:     order.ExtraStapleUnits,
+		FriedEggCount:        order.FriedEggCount,
+		TofuSkewerCount:      order.TofuSkewerCount,
+		SelectedMeatCodes:    meatCodes,
+		GreensCode:           order.GreensCode,
+		ScallionCode:         order.ScallionCode,
+		PepperCode:           order.PepperCode,
+		DiningMethodCode:     order.DiningMethodCode,
+		PackagingCode:        order.PackagingCode,
+		PackagingMethodCode:  order.PackagingMethodCode,
+		TotalPriceCents:      order.TotalPriceCents,
+		StapleStepStatusCode: order.StapleStepStatusCode,
+		MeatStepStatusCode:   order.MeatStepStatusCode,
+		Note:                 order.Note,
+		CreatedAt:            timex.FormatTime(order.CreatedAt, location),
+		UpdatedAt:            timex.FormatTime(order.UpdatedAt, location),
+	}
+	if order.CompletedAt != nil {
+		value := timex.FormatTime(*order.CompletedAt, location)
+		item.CompletedAt = &value
+	}
+	return item
+}
+
+func toOrderFormInput(form dto.OrderForm) domain.OrderFormInput {
+	return domain.OrderFormInput{
+		StapleTypeCode:       form.StapleTypeCode,
+		SizeCode:             form.SizeCode,
+		CustomSizePriceCents: form.CustomSizePriceCents,
+		StapleAmountCode:     form.StapleAmountCode,
+		ExtraStapleUnits:     form.ExtraStapleUnits,
+		FriedEggCount:        form.FriedEggCount,
+		TofuSkewerCount:      form.TofuSkewerCount,
+		SelectedMeatCodes:    form.SelectedMeatCodes,
+		GreensCode:           form.GreensCode,
+		ScallionCode:         form.ScallionCode,
+		PepperCode:           form.PepperCode,
+		DiningMethodCode:     form.DiningMethodCode,
+		PackagingCode:        form.PackagingCode,
+		PackagingMethodCode:  form.PackagingMethodCode,
+		Note:                 form.Note,
+	}
 }

@@ -56,8 +56,13 @@ func (s authStub) RequireAccessToken(context.Context, string) (*identity.Context
 }
 
 type orderStub struct {
-	listFn   func(context.Context, domain.Actor, domain.ListOrdersQuery) (*domain.ListOrdersResult, error)
-	createFn func(context.Context, domain.Actor, domain.CreateOrdersInput) ([]domain.Order, error)
+	listFn         func(context.Context, domain.Actor, domain.ListOrdersQuery) (*domain.ListOrdersResult, error)
+	createFn       func(context.Context, domain.Actor, domain.CreateOrdersInput) ([]domain.Order, error)
+	updateFn       func(context.Context, domain.Actor, uuid.UUID, domain.UpdateOrderInput) (*domain.Order, error)
+	toggleStepFn   func(context.Context, domain.Actor, uuid.UUID, domain.ToggleStepInput) (*domain.Order, error)
+	toggleServedFn func(context.Context, domain.Actor, uuid.UUID, domain.ToggleServedInput) (*domain.Order, error)
+	removeFn       func(context.Context, domain.Actor, uuid.UUID) error
+	clearFn        func(context.Context, domain.Actor, bool, domain.ClearWorkspaceMode) (int, error)
 }
 
 func (s orderStub) ListActive(context.Context, uuid.UUID) ([]domain.Order, error) {
@@ -78,22 +83,39 @@ func (s orderStub) CreateBatch(ctx context.Context, actor domain.Actor, input do
 	return s.createFn(ctx, actor, input)
 }
 
-func (s orderStub) UpdateForm(context.Context, domain.Actor, uuid.UUID, domain.UpdateOrderInput) (*domain.Order, error) {
-	return nil, nil
+func (s orderStub) UpdateForm(ctx context.Context, actor domain.Actor, id uuid.UUID, input domain.UpdateOrderInput) (*domain.Order, error) {
+	if s.updateFn == nil {
+		return nil, nil
+	}
+	return s.updateFn(ctx, actor, id, input)
 }
 
-func (s orderStub) ToggleStep(context.Context, domain.Actor, uuid.UUID, domain.ToggleStepInput) (*domain.Order, error) {
-	return nil, nil
+func (s orderStub) ToggleStep(ctx context.Context, actor domain.Actor, id uuid.UUID, input domain.ToggleStepInput) (*domain.Order, error) {
+	if s.toggleStepFn == nil {
+		return nil, nil
+	}
+	return s.toggleStepFn(ctx, actor, id, input)
 }
 
-func (s orderStub) ToggleServed(context.Context, domain.Actor, uuid.UUID, domain.ToggleServedInput) (*domain.Order, error) {
-	return nil, nil
+func (s orderStub) ToggleServed(ctx context.Context, actor domain.Actor, id uuid.UUID, input domain.ToggleServedInput) (*domain.Order, error) {
+	if s.toggleServedFn == nil {
+		return nil, nil
+	}
+	return s.toggleServedFn(ctx, actor, id, input)
 }
 
-func (s orderStub) Remove(context.Context, domain.Actor, uuid.UUID) error { return nil }
+func (s orderStub) Remove(ctx context.Context, actor domain.Actor, id uuid.UUID) error {
+	if s.removeFn == nil {
+		return nil
+	}
+	return s.removeFn(ctx, actor, id)
+}
 
-func (s orderStub) ClearWorkspace(context.Context, domain.Actor, bool, domain.ClearWorkspaceMode) (int, error) {
-	return 0, nil
+func (s orderStub) ClearWorkspace(ctx context.Context, actor domain.Actor, confirm bool, mode domain.ClearWorkspaceMode) (int, error) {
+	if s.clearFn == nil {
+		return 0, nil
+	}
+	return s.clearFn(ctx, actor, confirm, mode)
 }
 
 type statsStub struct{}
@@ -109,6 +131,10 @@ func (statsStub) Report(context.Context, uuid.UUID, domain.ReportQuery) (*domain
 // newTestRouter builds a gin engine with the real v2 route registration and
 // middleware stack; only the services are stubbed.
 func newTestRouter(authSvc service.Auth, orderSvc service.Order, statsSvc service.Stats) *gin.Engine {
+	return newTestRouterWithLocation(authSvc, orderSvc, statsSvc, time.UTC)
+}
+
+func newTestRouterWithLocation(authSvc service.Auth, orderSvc service.Order, statsSvc service.Stats, location *time.Location) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterRoutes(
@@ -118,7 +144,7 @@ func newTestRouter(authSvc service.Auth, orderSvc service.Order, statsSvc servic
 		statsSvc,
 		nil,
 		nil,
-		time.UTC,
+		location,
 		&config.Config{},
 		nil,
 	)

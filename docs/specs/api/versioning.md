@@ -76,6 +76,13 @@ func Success(data any) Response {
 
 成功与错误响应均包裹于同一信封内，客户端以 `code` 判定业务结果，而非仅依赖 HTTP 状态码。
 
+具体边界约定：
+
+- 删除订单成功返回 HTTP `200` 和 `{"code":"0","message":"success","data":null}`，不返回空的 `204`。
+- `/api/v2` 及其子路径未匹配到路由时，返回 HTTP `404`，`code` 为 `route_not_found`，`data` 为 `null`。未注册的请求方法也按此规则处理。
+- 未发送响应前发生未处理的 panic 时，返回 HTTP `500`，`code` 为 `internal_error`，`message` 为 `Internal Server Error`，`data` 为 `null`，不暴露异常细节。
+- 已发送的响应无法更改状态码；此时发生 panic，不向原响应追加错误 JSON。
+
 ### 5.2 v1 自管理
 
 `v1`（` /api/*`）当前使用的响应结构由其自身包封闭管理：

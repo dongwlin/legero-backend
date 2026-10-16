@@ -21,8 +21,3 @@ func Success(data any) Response {
 func JSON(c *gin.Context, status int, body any) {
 	c.JSON(status, body)
 }
-
-// NoContent sends a 204 with no body.
-func NoContent(c *gin.Context) {
-	c.Status(204)
-}

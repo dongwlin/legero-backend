@@ -1,7 +1,5 @@
 package dto
 
-import "github.com/dongwlin/legero-backend/internal/domain"
-
 // LoginRequest carries the login credentials.
 type LoginRequest struct {
 	Phone    string `json:"phone"`
@@ -37,11 +35,11 @@ type TokenPair struct {
 
 // Bootstrap is the full bootstrap payload returned after login.
 type Bootstrap struct {
-	User         AuthUser          `json:"user"`
-	Workspace    Workspace         `json:"workspace"`
-	Permissions  []string          `json:"permissions"`
-	ActiveOrders []domain.OrderDTO `json:"activeOrders"`
-	ServerTime   string            `json:"serverTime"`
+	User         AuthUser  `json:"user"`
+	Workspace    Workspace `json:"workspace"`
+	Permissions  []string  `json:"permissions"`
+	ActiveOrders []Order   `json:"activeOrders"`
+	ServerTime   string    `json:"serverTime"`
 }
 
 // LoginResponseData flattens the token pair and bootstrap payload into one response.
