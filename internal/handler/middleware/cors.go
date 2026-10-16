@@ -24,10 +24,13 @@ func CORS() gin.HandlerFunc {
 			"Content-Type",
 			"Cache-Control",
 			"Accept",
+			PerformanceRequestIDHeader,
 		},
 		ExposeHeaders: []string{
 			"Content-Type",
 			"Cache-Control",
+			PerformanceRequestIDHeader,
+			"Server-Timing",
 		},
 		MaxAge:                    24 * time.Hour,
 		OptionsResponseStatusCode: http.StatusNoContent,

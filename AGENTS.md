@@ -33,6 +33,15 @@ repository layout, architecture, domain model, and API surface.
 See `docs/agents/commands.md` when additional command details are needed,
 including config setup, CLI flags, Android builds, build-info ldflags, and CI.
 
+## Specs
+
+Feature behavior specs are delegated to the `docs/specs/` directory; read every
+spec applicable to the task before starting task work. Specs are normative —
+when code conflicts with a spec, fix the code or update the spec deliberately.
+
+* `docs/specs/api/versioning.md` — route versioning, v2 unified `Response{Code, Message, Data}` envelope, and v1 self-contained ownership
+* `docs/specs/domain/order-date-semantics.md` — order date semantics and time handling rules
+
 ## Conventions
 
 Instructions are delegated to `docs/agents/conventions.md`.
@@ -40,9 +49,6 @@ Instructions are delegated to `docs/agents/conventions.md`.
 ## Skills
 
 Instructions are delegated to `docs/agents/skills.md`.
-
-## Sub-agents
-Instructions are delegated to `docs/agents/subagents.md`.
 
 ## Local Environment
 

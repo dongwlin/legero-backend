@@ -91,10 +91,11 @@ func TestAbortErrorMapsAppErrorKindToHTTPStatus(t *testing.T) {
 			AbortError(c, tt.err)
 
 			require.Equal(t, tt.wantStatus, recorder.Code)
-			var body errorBody
+			var body Response
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-			require.Equal(t, tt.wantCode, body.Error.Code)
-			require.Equal(t, tt.wantMsg, body.Error.Message)
+			require.Equal(t, tt.wantCode, body.Code)
+			require.Equal(t, tt.wantMsg, body.Message)
+			require.Nil(t, body.Data)
 		})
 	}
 }

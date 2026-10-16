@@ -1,0 +1,49 @@
+{
+  "capturedAt": "2026-10-15T23:28:16.816506+00:00",
+  "commit": "95088ab48eda36c9a2363f65380526a20aebfcd5",
+  "branch": "feat/api-v2",
+  "workingTreeStatus": "M internal/handler/middleware/performance_integration_test.go",
+  "go": "go version go1.26.9-X:nodwarf5 linux/amd64",
+  "cpu": "AMD Ryzen 7 5800H with Radeon Graphics",
+  "sourceSha256": {
+    "internal/infra/performance/trace.go": "6e7bc901e335c4e12a14587907c892692bc1c96fc312f0157b7376fe922d62af",
+    "internal/infra/performance/trace_test.go": "73023771db5934c316d2191db8c6a558cfb93e587a908fae8697ae696cdeee8b",
+    "internal/handler/middleware/performance.go": "3251867da38ec60e3544e3a055bb80054dedf54866d34d635e1549b28ed2eb6d",
+    "internal/handler/middleware/performance_integration_test.go": "c5d8f321326d164d8c9983bf49ac04ed3301a62e380bdc699b9551d33fb3cb3c",
+    "internal/infra/database/database.go": "2b84c97986d0a18a3ee31772b55f7178ee1f96724de2134cfae3d2967e8ecfab",
+    "go.mod": "f777adb6d3250f2ede63b76b33050405b8eeae027d7eaa5be70677ff925aee93",
+    "go.sum": "72e424b1f39852d7f37e63462f5f175da17871e7d6552e511bcde965ab9fe5d8"
+  },
+  "execution": "sequential; no frontend benchmark/build/test or browser fixture during capture; development host, no Android device"
+}
+
+Command: go test ./internal/infra/performance -run ^$ -bench Benchmark(QueryHookDisabled|BunQueryInstrumentation) -benchmem -count=5
+
+goos: linux
+goarch: amd64
+pkg: github.com/dongwlin/legero-backend/internal/infra/performance
+cpu: AMD Ryzen 7 5800H with Radeon Graphics         
+BenchmarkQueryHookDisabled-16          	287373370	         4.066 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	317757225	         3.774 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	317044179	         3.897 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	315693944	         3.784 ns/op	       0 B/op	       0 allocs/op
+BenchmarkQueryHookDisabled-16          	307081771	         3.839 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6605679	       179.4 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6576499	       179.0 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6603588	       184.1 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6013744	       191.2 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/no-hook-16         	 6576452	       185.6 ns/op	      32 B/op	       1 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 3504642	       309.4 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4084449	       294.7 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4033310	       301.2 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4093754	       294.5 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/disabled-16        	 4118756	       297.8 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3337208	       363.3 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3357223	       356.5 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3458113	       360.5 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3340167	       356.0 ns/op	     192 B/op	       2 allocs/op
+BenchmarkBunQueryInstrumentation/enabled-16         	 3316838	       365.9 ns/op	     192 B/op	       2 allocs/op
+PASS
+ok  	github.com/dongwlin/legero-backend/internal/infra/performance	23.940s
+
+Exit code: 0
